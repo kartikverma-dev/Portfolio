@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #0B1220;
+  --color-sky: #2F6BFF;
+  --color-sky-light: #457DFF;
+  --color-sky-dark: #1F5AE6;
+  --color-paper: #F4F7FB;
+  --color-mist: #E8EEF7;
+  --color-coral: #FF7A59;
+
+  --font-headline: var(--font-headline), sans-serif;
+  --font-body: var(--font-body), sans-serif;
+  --font-mono: var(--font-mono), monospace;
+}
+
+:root {
+  --ink: #0B1220;
+  --sky: #2F6BFF;
+  --sky-light: #457DFF;
+  --sky-dark: #1F5AE6;
+  --paper: #F4F7FB;
+  --mist: #E8EEF7;
+  --coral: #FF7A59;
+
+  /* Theme variables for light mode */
+  --bg-main: #F4F7FB;
+  --bg-card: #FFFFFF;
+  --bg-nav: rgba(244, 247, 251, 0.85);
+  --text-main: #0B1220;
+  --text-secondary: #475569;
+  --border-color: rgba(11, 18, 32, 0.1);
+  --link-color: #1F5AE6; /* Adjusted for WCAG AA 5.33:1 on light paper */
+}
+
+html.dark {
+  /* Theme variables for dark mode */
+  --bg-main: #0B1220;
+  --bg-card: #121A2C;
+  --bg-nav: rgba(11, 18, 32, 0.85);
+  --text-main: #E8EEF7;
+  --text-secondary: #94A3B8;
+  --border-color: rgba(232, 238, 247, 0.12);
+  --link-color: #457DFF; /* Adjusted for WCAG AA 5.02:1 on dark ink */
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+body {
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  font-family: var(--font-body), sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+::selection {
+  background-color: #2F6BFF;
+  color: #FFFFFF;
+}
+
+/* Accessible focus ring */
+:focus-visible {
+  outline: 2px solid #2F6BFF;
+  outline-offset: 3px;
+}
