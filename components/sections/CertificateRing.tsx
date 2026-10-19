@@ -19,9 +19,9 @@ export function CertificateRing({
 }: CertificateRingProps) {
   // Continuous rotation angle in degrees
   const [rotation, setRotation] = useState(0);
-  // Center active card index
+  // Center active card index (0..N-1)
   const [activeIndex, setActiveIndex] = useState(0);
-  // Whether the carousel is currently in motion (scrolling / dragging)
+  // Whether the carousel is currently in motion
   const [isScrolling, setIsScrolling] = useState(false);
   // Whether the active card has expanded into the broad widened state
   const [isExpanded, setIsExpanded] = useState(true);
@@ -35,11 +35,13 @@ export function CertificateRing({
 
   // Animation and physics state
   const rotationRef = useRef(0);
+  const targetAngleRef = useRef(0);
+  const targetStepRef = useRef(0);
   const activeIndexRef = useRef(0);
-  const isScrollingRef = useRef(false);
   const rafIdRef = useRef<number | null>(null);
-  const stopTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const expandTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const wheelAccumulatorRef = useRef(0);
+  const wheelDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // Drag tracking
   const hasDraggedRef = useRef(false);
@@ -52,8 +54,10 @@ export function CertificateRing({
 
   const N = Math.max(1, certificates.length);
   const stepAngle = 360 / N;
-  // 3D radius for outward-facing circular loop
-  const radius = Math.max(340, Math.round((280 / 2) / Math.tan(Math.PI / N) * 1.15));
+
+  // INCREASED FIELD OF VIEW & RADIUS:
+  // Expands the 3D cylinder so cards have generous breathing room and never look packed
+  const radius = Math.max(460, Math.round((290 / 2) / Math.tan(Math.PI / N) * 1.52));
 
   const activeCert = certificates[activeIndex] || certificates[0];
 
@@ -82,37 +86,47 @@ export function CertificateRing({
     [N, stepAngle]
   );
 
-  // Smooth Spring Animation to target rotation
-  const animateToAngle = useCallback(
-    (targetAngle: number, onComplete?: () => void) => {
+  // Critically Damped Spring Animation:
+  // High smoothness and physical deceleration into target
+  const startSpringAnimation = useCallback(
+    (onSettle?: () => void) => {
       if (rafIdRef.current) {
         cancelAnimationFrame(rafIdRef.current);
         rafIdRef.current = null;
       }
 
       if (shouldReduceMotion) {
-        rotationRef.current = targetAngle;
-        updateDomRotation(targetAngle);
-        setRotation(targetAngle);
-        onComplete?.();
+        rotationRef.current = targetAngleRef.current;
+        updateDomRotation(targetAngleRef.current);
+        setRotation(targetAngleRef.current);
+        setIsScrolling(false);
+        setIsExpanded(true);
+        onSettle?.();
         return;
       }
 
       const springLoop = () => {
         const current = rotationRef.current;
-        const diff = targetAngle - current;
+        const target = targetAngleRef.current;
+        const diff = target - current;
 
-        if (Math.abs(diff) < 0.05) {
-          rotationRef.current = targetAngle;
-          updateDomRotation(targetAngle);
-          setRotation(targetAngle);
+        if (Math.abs(diff) < 0.04) {
+          rotationRef.current = target;
+          updateDomRotation(target);
+          setRotation(target);
           rafIdRef.current = null;
-          onComplete?.();
+          setIsScrolling(false);
+
+          if (expandTimeoutRef.current) clearTimeout(expandTimeoutRef.current);
+          expandTimeoutRef.current = setTimeout(() => {
+            setIsExpanded(true);
+            onSettle?.();
+          }, 60);
           return;
         }
 
-        // Smooth spring easing
-        const next = current + diff * 0.16;
+        // Luxurious, butter-smooth spring easing factor
+        const next = current + diff * 0.11;
         rotationRef.current = next;
         updateDomRotation(next);
         rafIdRef.current = requestAnimationFrame(springLoop);
@@ -123,44 +137,24 @@ export function CertificateRing({
     [shouldReduceMotion, updateDomRotation]
   );
 
-  // Stop scrolling and expand the centered certificate
-  const handleScrollSettled = useCallback(() => {
-    isScrollingRef.current = false;
-    setIsScrolling(false);
-
-    // Snap to the exact front card position
-    const nearestStep = Math.round(rotationRef.current / stepAngle);
-    const targetAngle = nearestStep * stepAngle;
-
-    animateToAngle(targetAngle, () => {
-      // Once aligned, broaden/expand the centered certificate
-      if (expandTimeoutRef.current) clearTimeout(expandTimeoutRef.current);
-      expandTimeoutRef.current = setTimeout(() => {
-        setIsExpanded(true);
-      }, 60);
-    });
-  }, [stepAngle, animateToAngle]);
-
-  // Trigger scrolling state: immediately contract card and reset settle timer
-  const notifyScrollActivity = useCallback(() => {
-    if (!isScrollingRef.current) {
-      isScrollingRef.current = true;
+  // Step certificate by integer increments (e.g. +1 or -1)
+  const stepCertificate = useCallback(
+    (stepDelta: number) => {
+      setIsExpanded(false);
       setIsScrolling(true);
-      setIsExpanded(false); // Contract immediately when scrolling starts
-    }
 
-    if (stopTimeoutRef.current) clearTimeout(stopTimeoutRef.current);
-    if (expandTimeoutRef.current) clearTimeout(expandTimeoutRef.current);
+      targetStepRef.current += stepDelta;
+      targetAngleRef.current = targetStepRef.current * stepAngle;
 
-    // When no scroll activity occurs for 190ms, settle and broaden
-    stopTimeoutRef.current = setTimeout(handleScrollSettled, 190);
-  }, [handleScrollSettled]);
+      startSpringAnimation();
+    },
+    [stepAngle, startSpringAnimation]
+  );
 
-  // Navigate directly to a specific card index
+  // Rotate directly to a specific card index
   const rotateToIndex = useCallback(
     (targetIndex: number) => {
       setIsExpanded(false);
-      isScrollingRef.current = true;
       setIsScrolling(true);
 
       const current = rotationRef.current;
@@ -169,57 +163,60 @@ export function CertificateRing({
       if (relDiff > 180) relDiff -= 360;
       if (relDiff < -180) relDiff += 360;
 
-      animateToAngle(current + relDiff, () => {
-        handleScrollSettled();
-      });
+      const newTarget = current + relDiff;
+      targetAngleRef.current = newTarget;
+      targetStepRef.current = Math.round(newTarget / stepAngle);
+
+      startSpringAnimation();
     },
-    [stepAngle, animateToAngle, handleScrollSettled]
+    [stepAngle, startSpringAnimation]
   );
 
-  // Chevron step navigation
+  // Navigation Chevrons
   const handlePrev = useCallback(() => {
-    setIsExpanded(false);
-    isScrollingRef.current = true;
-    setIsScrolling(true);
-    const current = Math.round(rotationRef.current / stepAngle) * stepAngle;
-    animateToAngle(current + stepAngle, handleScrollSettled);
-  }, [stepAngle, animateToAngle, handleScrollSettled]);
+    stepCertificate(1);
+  }, [stepCertificate]);
 
   const handleNext = useCallback(() => {
-    setIsExpanded(false);
-    isScrollingRef.current = true;
-    setIsScrolling(true);
-    const current = Math.round(rotationRef.current / stepAngle) * stepAngle;
-    animateToAngle(current - stepAngle, handleScrollSettled);
-  }, [stepAngle, animateToAngle, handleScrollSettled]);
+    stepCertificate(-1);
+  }, [stepCertificate]);
 
-  // REAL MOUSE SCROLLING FUNCTION:
-  // Scrolling rotating the 3D loop continuously, then automatically broadening on stop
+  // 1-BIT MOUSE WHEEL ROTATION:
+  // Turning the wheel 1 single bit (notch) switches by exactly 1 certificate!
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
 
     const onWheel = (e: WheelEvent) => {
-      // Intercept wheel on the 3D stage to rotate loop
       e.preventDefault();
 
-      notifyScrollActivity();
+      const rawDelta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      wheelAccumulatorRef.current += rawDelta;
 
-      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+      if (wheelDebounceRef.current) clearTimeout(wheelDebounceRef.current);
+      wheelDebounceRef.current = setTimeout(() => {
+        wheelAccumulatorRef.current = 0;
+      }, 160);
 
-      // Real mouse wheel delta (horizontal or vertical)
-      const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-      const rotDelta = -delta * 0.22;
+      // Threshold tuned so 1 single notch of a standard wheel switches exactly 1 card
+      const NOTCH_THRESHOLD = 50;
 
-      rotationRef.current += rotDelta;
-      updateDomRotation(rotationRef.current);
+      if (wheelAccumulatorRef.current >= NOTCH_THRESHOLD) {
+        const steps = Math.floor(wheelAccumulatorRef.current / NOTCH_THRESHOLD);
+        wheelAccumulatorRef.current = wheelAccumulatorRef.current % NOTCH_THRESHOLD;
+        stepCertificate(-steps); // Downward scroll moves forward
+      } else if (wheelAccumulatorRef.current <= -NOTCH_THRESHOLD) {
+        const steps = Math.floor(Math.abs(wheelAccumulatorRef.current) / NOTCH_THRESHOLD);
+        wheelAccumulatorRef.current = -(Math.abs(wheelAccumulatorRef.current) % NOTCH_THRESHOLD);
+        stepCertificate(steps); // Upward scroll moves backward
+      }
     };
 
     stage.addEventListener("wheel", onWheel, { passive: false });
     return () => stage.removeEventListener("wheel", onWheel);
-  }, [notifyScrollActivity, updateDomRotation]);
+  }, [stepCertificate]);
 
-  // Pointer Drag Handlers (Mouse drag & Touch flick)
+  // Pointer Drag Handlers (Mouse Drag & Touch Flick)
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
 
@@ -251,11 +248,12 @@ export function CertificateRing({
     if (totalDistX > 4) {
       if (!hasDraggedRef.current) {
         hasDraggedRef.current = true;
-        notifyScrollActivity();
+        setIsExpanded(false);
+        setIsScrolling(true);
       }
     }
 
-    const rotDelta = deltaX * 0.32;
+    const rotDelta = deltaX * 0.28;
     rotationRef.current += rotDelta;
     updateDomRotation(rotationRef.current);
 
@@ -283,28 +281,17 @@ export function CertificateRing({
 
     if (hasDraggedRef.current) {
       const vel = dragRef.current.velocity;
-      if (Math.abs(vel) > 0.5) {
-        // Coasting with friction before snap
-        let currentVel = vel * 0.8;
-        const coastLoop = () => {
-          rotationRef.current += currentVel;
-          updateDomRotation(rotationRef.current);
-          currentVel *= 0.92;
+      // Calculate nearest target step from current position plus momentum flick
+      const currentAngle = rotationRef.current + vel * 2.2;
+      const nearestStep = Math.round(currentAngle / stepAngle);
 
-          if (Math.abs(currentVel) < 0.1) {
-            handleScrollSettled();
-            return;
-          }
-          rafIdRef.current = requestAnimationFrame(coastLoop);
-        };
-        rafIdRef.current = requestAnimationFrame(coastLoop);
-      } else {
-        handleScrollSettled();
-      }
+      targetStepRef.current = nearestStep;
+      targetAngleRef.current = nearestStep * stepAngle;
+      startSpringAnimation();
     }
   };
 
-  // Keyboard navigation
+  // Keyboard Navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowLeft") {
       e.preventDefault();
@@ -333,7 +320,7 @@ export function CertificateRing({
         Current certificate: {activeCert.title}, issued by {activeCert.issuer}.
       </div>
 
-      {/* 3D CAROUSEL PERSPECTIVE STAGE (Always active for all screen sizes) */}
+      {/* 3D CAROUSEL PERSPECTIVE STAGE */}
       <div className="w-full py-4 sm:py-6">
         <div
           ref={stageRef}
@@ -341,22 +328,22 @@ export function CertificateRing({
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
-          className={`relative w-full h-[500px] sm:h-[540px] flex items-center justify-center overflow-hidden rounded-3xl transition-colors duration-300 ${
+          className={`relative w-full h-[560px] sm:h-[620px] flex items-center justify-center overflow-hidden rounded-3xl transition-colors duration-300 ${
             isDragging ? "cursor-grabbing" : "cursor-grab"
           }`}
         >
-          {/* 3D Perspective Viewport */}
+          {/* EXPANDED 3D PERSPECTIVE VIEWPORT (Wide Field of View) */}
           <div
             className="w-full h-full flex items-center justify-center"
             style={{
-              perspective: "1350px",
+              perspective: "2100px",
               perspectiveOrigin: "50% 50%",
             }}
           >
             {/* Rotating 3D Cylinder Container */}
             <div
               ref={ringRef}
-              className="relative w-[270px] sm:w-[300px] h-[390px] sm:h-[410px]"
+              className="relative w-[280px] sm:w-[300px] h-[400px] sm:h-[420px]"
               style={{
                 transformStyle: "preserve-3d",
                 transform: `rotateY(${rotation}deg)`,
@@ -377,20 +364,20 @@ export function CertificateRing({
                 // When centered and stopped scrolling, card opens, expands & widens!
                 const isBroadened = isCentred && isExpanded && !isScrolling;
 
-                // Scale & Opacity adjustments for depth
+                // Generous Depth & Opacity Scaling for Spacious Visual Hierarchy
                 const depthScale = isCentred
                   ? isBroadened
-                    ? 1.04
+                    ? 1.05
                     : 1.0
                   : stepDiff === 1
-                  ? 0.92
-                  : 0.84;
+                  ? 0.86
+                  : 0.72;
 
                 const depthOpacity = isCentred
                   ? 1
                   : stepDiff === 1
-                  ? 0.68
-                  : 0.28;
+                  ? 0.52
+                  : 0.16;
 
                 return (
                   <div
@@ -408,16 +395,16 @@ export function CertificateRing({
                     }}
                     className={`absolute top-0 rounded-2xl flex flex-col justify-between transition-[width,left,transform,opacity,box-shadow,border-color,background-color] duration-300 ease-out cursor-pointer ${
                       isBroadened
-                        ? "w-[340px] xs:w-[400px] sm:w-[480px] md:w-[500px] -left-[35px] xs:-left-[65px] sm:-left-[90px] md:-left-[100px] p-5 sm:p-6 z-30"
-                        : "w-[270px] sm:w-[300px] left-0 p-5 z-10"
+                        ? "w-[350px] xs:w-[420px] sm:w-[500px] md:w-[540px] -left-[35px] xs:-left-[60px] sm:-left-[100px] md:-left-[120px] p-6 sm:p-7 z-30"
+                        : "w-[280px] sm:w-[300px] left-0 p-5 z-10"
                     } ${
-                      /* Subtle bridge border between UI obsidian-blue and certificate white */
+                      /* Subtle custom border bridging UI colors and white certificate */
                       isCentred
-                        ? "bg-white dark:bg-[#0f172a] text-[#0B1220] dark:text-[#E8EEF7] border-2 border-[#2F6BFF] ring-4 ring-[#457DFF]/25 shadow-[0_16px_50px_rgba(47,107,255,0.28)]"
+                        ? "bg-white dark:bg-[#0f172a] text-[#0B1220] dark:text-[#E8EEF7] border-2 border-[#2F6BFF] ring-4 ring-[#457DFF]/25 shadow-[0_20px_60px_rgba(47,107,255,0.32)]"
                         : "bg-white/95 dark:bg-[#111A2E]/95 text-[#334155] dark:text-[#CBD5E1] border border-[#CBD5E1] dark:border-[#334155]/80 hover:border-[#2F6BFF]/60 shadow-lg hover:shadow-xl"
                     }`}
                     style={{
-                      height: "410px",
+                      height: "420px",
                       transform: `rotateY(${baseAngle}deg) translateZ(${radius}px) scale(${depthScale})`,
                       opacity: depthOpacity,
                       transformStyle: "preserve-3d",
@@ -458,7 +445,7 @@ export function CertificateRing({
                             src={cardImg}
                             alt={`${cert.title} preview`}
                             fill
-                            sizes="(max-width: 768px) 300px, 500px"
+                            sizes="(max-width: 768px) 320px, 540px"
                             loading="lazy"
                             className="object-cover transition-transform duration-500 hover:scale-[1.02]"
                           />
@@ -571,14 +558,14 @@ export function CertificateRing({
           </button>
         </div>
 
-        {/* REAL MOUSE SCROLLING HINT & DYNAMIC STEP TRACKER */}
+        {/* 1-BIT MOUSE SCROLLING HINT & STEP TRACKER */}
         <div className="mt-4 mb-6 flex flex-col sm:flex-row items-center justify-between gap-3 px-4 max-w-3xl mx-auto w-full font-mono text-xs text-slate-600 dark:text-[#94A3B8]">
           <div className="inline-flex items-center gap-2">
             <MousePointer2 className="w-3.5 h-3.5 text-[#2F6BFF] dark:text-[#457DFF]" aria-hidden="true" />
             <span>
               {isScrolling
-                ? "Scrolling 3D loop... Pause to broaden certificate"
-                : "Scroll mouse wheel to spin 3D loop • Stops to broaden"}
+                ? "Switching certificate... Pause to broaden"
+                : "1 mouse notch switches certificate • Stops to broaden"}
             </span>
           </div>
 
