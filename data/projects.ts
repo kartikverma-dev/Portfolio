@@ -75,8 +75,6 @@ export const projects: Project[] = [
     technologies: ["AI Research", "Next.js"],
     status: "Prototype",
     statusLabel: "Prototype",
-    limitation:
-      "Reported agreement with senior AI architects on the platform's scoring. Not a general accuracy or commercial-performance claim.",
     featuredOnHome: true,
     links: [
       {
@@ -97,7 +95,6 @@ export const projects: Project[] = [
     technologies: ["Rust", "Next.js", "TypeScript", "AI Integration", "Tailwind CSS"],
     status: "Concept",
     statusLabel: "Concept",
-    limitation: "Concept architecture; not in production usage or customer deployment.",
     featuredOnHome: true,
     links: [
       {
@@ -118,7 +115,6 @@ export const projects: Project[] = [
     technologies: ["Next.js", "TypeScript", "UI/UX Architecture", "Tailwind CSS"],
     status: "Concept",
     statusLabel: "Concept",
-    limitation: "Interface and planning concept; no revenue, customers, or operational metrics.",
     featuredOnHome: false,
     links: [
       {
@@ -135,11 +131,10 @@ export const projects: Project[] = [
     title: "SmartCCTV AI Android Brain",
     category: "Android, AI, Computer Vision",
     description:
-      "Android smart-camera and computer-vision concept exploring edge inferencing on mobile hardware.",
+      "Android smart-camera and computer-vision concept.",
     technologies: ["Android", "Computer Vision", "TensorFlow Lite", "Java/Kotlin"],
     status: "In progress",
     statusLabel: "In progress",
-    limitation: "Prototype exploration; unfinished components remain work in progress.",
     featuredOnHome: false,
     links: [
       {
@@ -164,9 +159,8 @@ export const projects: Project[] = [
       "Mecanum Wheels",
       "Motor Control",
     ],
-    status: "Prototype",
-    statusLabel: "Prototype",
-    limitation: "Robotics prototype; no autonomous navigation or advanced AI claimed.",
+    status: "In progress",
+    statusLabel: "In progress",
     featuredOnHome: true,
     links: [
       {
@@ -187,7 +181,6 @@ export const projects: Project[] = [
     technologies: ["Arduino Uno", "ESP8266", "Embedded Prototyping", "IoT Concepts"],
     status: "Experiment",
     statusLabel: "Experiment",
-    limitation: "Early hardware experiment; separated demonstrated features from planned ones.",
     featuredOnHome: false,
     links: [
       {
@@ -208,7 +201,6 @@ export const projects: Project[] = [
     technologies: ["RF Prototyping", "Embedded Systems", "Sensors", "Hardware Design"],
     status: "Research",
     statusLabel: "Research",
-    limitation: "Experimental hardware research; no finalized commercial specifications.",
     featuredOnHome: false,
     links: [
       {
@@ -253,7 +245,6 @@ export const projects: Project[] = [
     ],
     status: "Prototype",
     statusLabel: "Hand landmark tracking tested",
-    limitation: "Hand landmark tracking tested on Samsung Galaxy A55. Gesture interaction experiment in progress; not a complete file transfer.",
     featuredOnHome: true,
     links: [
       {
@@ -274,7 +265,6 @@ export const projects: Project[] = [
     technologies: ["ComfyUI", "Hugging Face Models", "Google Colab", "Python"],
     status: "Experiment",
     statusLabel: "Experiment",
-    limitation: "Workflow experimentation; no custom trained models or unverified output claims.",
     featuredOnHome: false,
     links: [
       {

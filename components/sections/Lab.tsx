@@ -34,7 +34,7 @@ const labEntries: LabEntry[] = [
     demonstrated:
       "Hand landmarks tracked and one hand detected on a Samsung Galaxy A55.",
     boundary:
-      "Started from Google's MediaPipe Hand Landmarker sample exploring grab and pinch gestures to select sending and receiving devices. Complete device-to-device file transfer is not claimed; presented strictly as an experiment in progress.",
+      "Started from Google's MediaPipe Hand Landmarker sample exploring grab and pinch gestures to select sending and receiving devices.",
     icon: Hand,
   },
   {
@@ -55,7 +55,7 @@ const labEntries: LabEntry[] = [
     demonstrated:
       "A robotics project exploring Arduino Uno, ESP8266, NRF24L01 wireless communication, Li-ion power, motor control and Mecanum wheels.",
     boundary:
-      "Hardware prototype. No autonomous navigation or advanced AI claimed.",
+      "Hardware prototype in progress.",
     icon: Cpu,
   },
   {
@@ -69,7 +69,7 @@ const labEntries: LabEntry[] = [
     demonstrated:
       "Experiment with Arduino Uno, ESP8266 and storage or networking ideas on tiny hardware.",
     boundary:
-      "Early hardware experiment. Separating demonstrated features from planned ones.",
+      "Early hardware experiment exploring storage and networking concepts.",
     icon: HardDrive,
   },
   {
@@ -87,7 +87,7 @@ const labEntries: LabEntry[] = [
     demonstrated:
       "LUMOS RF (research and prototype), LUMOS ROVER (in progress), and LUMOS AI PIN (prototype and research).",
     boundary:
-      "Hardware exploration suite. No invented specs or completed features.",
+      "Hardware exploration suite across RF sensing, rover robotics, and wearable AI.",
     icon: Radio,
   },
   {
@@ -106,7 +106,7 @@ const labEntries: LabEntry[] = [
     demonstrated:
       "Experiments with ComfyUI, Hugging Face models, Google Colab and GPU-based video generation.",
     boundary:
-      "Workflow exploration. No custom trained models or specific output quality claimed.",
+      "Workflow exploration with open generative pipelines.",
     icon: Video,
   },
 ];
@@ -270,7 +270,7 @@ export function Lab() {
             {/* Research Boundary strictly per Master Prompt */}
             <div className="p-4 rounded-xl bg-[#0B1220]/60 border border-[rgba(255,122,89,0.25)] space-y-1.5 text-xs">
               <span className="text-[11px] uppercase tracking-wider text-[#FF7A59] font-semibold block">
-                Research Limitation & Status:
+                Research Scope & Status:
               </span>
               <p className="text-[#94A3B8] leading-relaxed">
                 {currentEntry.boundary}
