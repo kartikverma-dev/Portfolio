@@ -2,10 +2,11 @@ import { Navbar } from "@/components/navigation/Navbar";
 import { Hero } from "@/components/sections/Hero";
 import { About } from "@/components/sections/About";
 import { Work } from "@/components/sections/Work";
+import { GitHubRepos } from "@/components/sections/GitHubRepos";
 import { Experience } from "@/components/sections/Experience";
+import { Certificates } from "@/components/sections/Certificates";
 import { Skills } from "@/components/sections/Skills";
 import { Lab } from "@/components/sections/Lab";
-import { Certifications } from "@/components/sections/Certifications";
 import { Contact } from "@/components/sections/Contact";
 import { Footer } from "@/components/sections/Footer";
 
@@ -26,10 +27,11 @@ export default function Home() {
         <Hero />
         <About />
         <Work />
+        <GitHubRepos />
         <Experience />
+        <Certificates />
         <Skills />
         <Lab />
-        <Certifications />
         <Contact />
       </main>
 

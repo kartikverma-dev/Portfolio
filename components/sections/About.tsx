@@ -167,6 +167,10 @@ export function About() {
                 <ul className="space-y-1.5 text-xs text-[rgba(11,18,32,0.8)] dark:text-[#CBD5E1]">
                   <li className="flex items-center gap-2">
                     <span className="w-1.5 h-1.5 rounded-full bg-[#1F5AE6] dark:bg-[#457DFF]" />
+                    <span>Core Committee, InvenT 2026</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#1F5AE6] dark:bg-[#457DFF]" />
                     <span>Technical representative, Tech Yuva community</span>
                   </li>
                   <li className="flex items-center gap-2">

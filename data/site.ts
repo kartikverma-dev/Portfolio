@@ -88,9 +88,9 @@ export const siteConfig: SiteConfig = {
     { label: "About", href: "#about" },
     { label: "Work", href: "#work" },
     { label: "Experience", href: "#experience" },
+    { label: "Credentials", href: "#credentials" },
     { label: "Skills", href: "#skills" },
     { label: "Lab", href: "#lab" },
-    { label: "Certifications", href: "#certifications" },
     { label: "Contact", href: "#contact" },
   ],
   hero: {

@@ -28,10 +28,11 @@ export function Navbar() {
       "hero",
       "about",
       "work",
+      "github",
       "experience",
+      "credentials",
       "skills",
       "lab",
-      "certifications",
       "contact",
     ];
     const observerCallback: IntersectionObserverCallback = (entries) => {
