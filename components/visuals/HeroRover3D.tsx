@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useSyncExternalStore } from "react";
 import dynamic from "next/dynamic";
 import { RoverFallbackSVG } from "./RoverFallbackSVG";
 
@@ -27,41 +27,50 @@ function checkWebGLSupport(): boolean {
   }
 }
 
+// Subscribe to media query changes (resizing across 1024px and reduced-motion changes)
+function subscribeToViewport(callback: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+
+  const desktopMedia = window.matchMedia("(min-width: 1024px)");
+  const motionMedia = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+  desktopMedia.addEventListener("change", callback);
+  motionMedia.addEventListener("change", callback);
+
+  return () => {
+    desktopMedia.removeEventListener("change", callback);
+    motionMedia.removeEventListener("change", callback);
+  };
+}
+
+// Client snapshot evaluation
+function getViewportSnapshot(): boolean {
+  if (typeof window === "undefined") return false;
+  const isDesktop = window.matchMedia("(min-width: 1024px)").matches;
+  const prefersReducedMotion = window.matchMedia(
+    "(prefers-reduced-motion: reduce)"
+  ).matches;
+  const hasWebGL = checkWebGLSupport();
+
+  return isDesktop && !prefersReducedMotion && hasWebGL;
+}
+
+// Server snapshot for SSR hydration safety
+function getServerSnapshot(): boolean {
+  return false;
+}
+
 export function HeroRover3D({ className = "" }: { className?: string }) {
-  const [mounted, setMounted] = useState(false);
-  const [isDesktop, setIsDesktop] = useState(false);
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
-  const [hasWebGL, setHasWebGL] = useState(false);
   const [contextLost, setContextLost] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-    setHasWebGL(checkWebGLSupport());
+  // Synchronize with external browser viewport and media queries without cascading renders
+  const is3DAvailable = useSyncExternalStore(
+    subscribeToViewport,
+    getViewportSnapshot,
+    getServerSnapshot
+  );
 
-    const desktopMedia = window.matchMedia("(min-width: 1024px)");
-    const motionMedia = window.matchMedia("(prefers-reduced-motion: reduce)");
-
-    const updateMediaMatches = () => {
-      setIsDesktop(desktopMedia.matches);
-      setPrefersReducedMotion(motionMedia.matches);
-    };
-
-    // Initial check
-    updateMediaMatches();
-
-    // Listen for resize and reduced-motion changes in both directions
-    desktopMedia.addEventListener("change", updateMediaMatches);
-    motionMedia.addEventListener("change", updateMediaMatches);
-
-    return () => {
-      desktopMedia.removeEventListener("change", updateMediaMatches);
-      motionMedia.removeEventListener("change", updateMediaMatches);
-    };
-  }, []);
-
-  // Show 3D scene only when mounted, desktop (>= 1024px), reduced motion is off, WebGL is supported, and context has not been lost
-  const shouldRender3D =
-    mounted && isDesktop && !prefersReducedMotion && hasWebGL && !contextLost;
+  const shouldRender3D = is3DAvailable && !contextLost;
 
   return (
     <div className={`w-full flex items-center justify-center ${className}`}>
