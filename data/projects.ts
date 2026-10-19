@@ -212,6 +212,24 @@ export const projects: Project[] = [
     featuredOnHome: false,
     links: [
       {
+        type: "github",
+        url: "https://github.com/kartikverma-dev/LUMOS-RF",
+        label: "LUMOS-RF Repository",
+        verified: true,
+      },
+      {
+        type: "github",
+        url: "https://github.com/kartikverma-dev/LUMOS-AI-PIN",
+        label: "LUMOS-AI-PIN Repository",
+        verified: true,
+      },
+      {
+        type: "github",
+        url: "https://github.com/kartikverma-dev/lumos-AI-Rover",
+        label: "lumos-AI-Rover Repository",
+        verified: true,
+      },
+      {
         type: "profile",
         url: "https://github.com/kartikverma-dev",
         label: "GitHub Profile",

@@ -43,3 +43,7 @@ next-env.d.ts
 # raw certificate source documents
 /certificates/
 /certiicates/
+
+# build prompt
+Master Prompt v2*.md
+

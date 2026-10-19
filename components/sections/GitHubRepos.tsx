@@ -31,21 +31,23 @@ async function fetchGitHubRepos(): Promise<GitHubRepo[]> {
       return [];
     }
 
-    // Build case-insensitive list of featured project identifiers
+    // Build case-insensitive list of featured project identifiers (only primary home showcase)
     const featuredIdentifiers = new Set<string>();
-    projects.forEach((p) => {
-      featuredIdentifiers.add(p.id.toLowerCase());
-      featuredIdentifiers.add(p.title.toLowerCase());
-      p.links.forEach((l) => {
-        try {
-          const parts = l.url.split("/");
-          const lastPart = parts[parts.length - 1]?.toLowerCase();
-          if (lastPart) featuredIdentifiers.add(lastPart);
-        } catch {
-          // ignore invalid URLs
-        }
+    projects
+      .filter((p) => p.featuredOnHome)
+      .forEach((p) => {
+        featuredIdentifiers.add(p.id.toLowerCase());
+        featuredIdentifiers.add(p.title.toLowerCase());
+        p.links.forEach((l) => {
+          try {
+            const parts = l.url.split("/");
+            const lastPart = parts[parts.length - 1]?.toLowerCase();
+            if (lastPart) featuredIdentifiers.add(lastPart);
+          } catch {
+            // ignore invalid URLs
+          }
+        });
       });
-    });
 
     const hiddenSet = new Set(hiddenRepoNames.map((n) => n.toLowerCase()));
 
