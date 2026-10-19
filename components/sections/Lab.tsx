@@ -23,7 +23,7 @@ const labEntries: LabEntry[] = [
     logLabel: "EXPERIMENT",
     title: "Android Hand-Gesture Sharing",
     domain: "Android, Computer Vision, HCI",
-    status: "Prototype",
+    status: "In Progress",
     statusColor: "text-[#2F6BFF] border-[#2F6BFF]/30 bg-[#2F6BFF]/10",
     hardwareSoftware: [
       "Google MediaPipe Hand Landmarker",
@@ -34,7 +34,7 @@ const labEntries: LabEntry[] = [
     demonstrated:
       "Hand landmarks tracked and one hand detected on a Samsung Galaxy A55.",
     boundary:
-      "Started from Google's MediaPipe Hand Landmarker sample exploring grab and pinch gestures to select sending and receiving devices.",
+      "Hand landmark tracking tested on a Samsung Galaxy A55.",
     icon: Hand,
   },
   {

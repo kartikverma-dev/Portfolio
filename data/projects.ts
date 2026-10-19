@@ -75,6 +75,8 @@ export const projects: Project[] = [
     technologies: ["AI Research", "Next.js"],
     status: "Prototype",
     statusLabel: "Prototype",
+    limitation:
+      "Reported 86.7% agreement with senior AI architects on the platform's scoring.",
     featuredOnHome: true,
     links: [
       {
@@ -243,8 +245,9 @@ export const projects: Project[] = [
       "Computer Vision",
       "HCI",
     ],
-    status: "Prototype",
-    statusLabel: "Hand landmark tracking tested",
+    status: "In progress",
+    statusLabel: "In progress",
+    limitation: "Hand landmark tracking tested on a Samsung Galaxy A55.",
     featuredOnHome: true,
     links: [
       {

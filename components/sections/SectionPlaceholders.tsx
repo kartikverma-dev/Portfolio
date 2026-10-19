@@ -37,12 +37,9 @@ export function RemainingPlaceholders() {
               className="p-6 rounded-xl bg-[var(--bg-card)] border border-[var(--border-color)] flex flex-col justify-between"
             >
               <div>
-                <h3 className="font-headline font-bold text-lg text-[var(--text-main)] mb-1">
+                <h3 className="font-headline font-bold text-lg text-[var(--text-main)] mb-4">
                   {group.title}
                 </h3>
-                <p className="text-xs text-[var(--text-secondary)] mb-4">
-                  {group.description}
-                </p>
                 <div className="flex flex-wrap gap-1.5">
                   {group.skills.map((s) => (
                     <span

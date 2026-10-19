@@ -105,12 +105,9 @@ export function Skills() {
                     </span>
                   </div>
 
-                  <h3 className="font-headline font-bold text-xl text-[#0B1220] dark:text-[#E8EEF7]">
+                  <h3 className="font-headline font-bold text-xl text-[#0B1220] dark:text-[#E8EEF7] mb-6">
                     {group.title}
                   </h3>
-                  <p className="mt-1 text-xs text-[rgba(11,18,32,0.65)] dark:text-[#94A3B8] leading-relaxed mb-6">
-                    {group.description}
-                  </p>
 
                   {/* Skills List */}
                   <div className="space-y-2.5">

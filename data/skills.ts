@@ -11,7 +11,6 @@ export interface SkillItem {
 export interface SkillGroup {
   id: string;
   title: string;
-  description: string;
   skills: SkillItem[];
 }
 
@@ -19,7 +18,6 @@ export const skillGroups: SkillGroup[] = [
   {
     id: "programming-web",
     title: "Programming & Web",
-    description: "Core languages, web architecture, and modern front-end engineering",
     skills: [
       { name: "Python", proficiency: "Working Knowledge" },
       { name: "C", proficiency: "Working Knowledge" },
@@ -34,7 +32,6 @@ export const skillGroups: SkillGroup[] = [
   {
     id: "ai-machine-learning",
     title: "AI & Machine Learning",
-    description: "Vision models, local inference, workflow automation, and prompt engineering",
     skills: [
       { name: "Ultralytics YOLO", proficiency: "Project Experience" },
       { name: "Computer Vision", proficiency: "Project Experience" },
@@ -48,7 +45,6 @@ export const skillGroups: SkillGroup[] = [
   {
     id: "cybersecurity-systems",
     title: "Cybersecurity & Systems",
-    description: "Defensive concepts, security research, Linux systems, and network protocols",
     skills: [
       { name: "Cybersecurity Fundamentals", proficiency: "Working Knowledge" },
       { name: "Ethical Hacking Research", proficiency: "Currently Exploring" },
@@ -61,7 +57,6 @@ export const skillGroups: SkillGroup[] = [
   {
     id: "embedded-hardware",
     title: "Embedded & Hardware",
-    description: "Microcontrollers, wireless communication, robotics drive trains, and sensor integration",
     skills: [
       { name: "Arduino Uno", proficiency: "Project Experience" },
       { name: "ESP8266 Wi-Fi", proficiency: "Project Experience" },
@@ -74,7 +69,6 @@ export const skillGroups: SkillGroup[] = [
   {
     id: "creative-development",
     title: "Creative Development",
-    description: "Motion design, spatial UI, fluid typography, and microinteractions",
     skills: [
       { name: "Responsive Interface Design", proficiency: "Project Experience" },
       { name: "Motion for React", proficiency: "Project Experience" },
