@@ -5,8 +5,6 @@ import Image from "next/image";
 import { CertificateItem } from "@/data/certificates";
 import { motion, AnimatePresence } from "motion/react";
 import { ChevronLeft, ChevronRight, Award, ExternalLink, Calendar, MousePointer2 } from "lucide-react";
-import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
 
 interface CertificateRingProps {
   certificates: CertificateItem[];
@@ -21,124 +19,348 @@ export function CertificateRing({
 }: CertificateRingProps) {
   const [rotation, setRotation] = useState(0);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [isActive, setIsActive] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
-  const [scrollProgress, setScrollProgress] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isIntersecting, setIsIntersecting] = useState(true);
+
+  // Fallback active index for mobile swipe row
+  const [mobileActiveIndex, setMobileActiveIndex] = useState(0);
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const pinTriggerRef = useRef<HTMLDivElement>(null);
   const ringRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
   const swipeRowRef = useRef<HTMLDivElement>(null);
   const openBtnRef = useRef<HTMLButtonElement>(null);
-  const scrollTriggerInstanceRef = useRef<ScrollTrigger | null>(null);
+
+  // Physics and Animation Refs
+  const rotationRef = useRef(0);
+  const activeIndexRef = useRef(0);
+  const rafIdRef = useRef<number | null>(null);
+  const wheelDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Drag interaction tracking
+  const hasDraggedRef = useRef(false);
+  const dragStartRef = useRef({
+    x: 0,
+    y: 0,
+    startRot: 0,
+    lastX: 0,
+    lastTime: 0,
+    velocity: 0,
+  });
 
   const N = Math.max(1, certificates.length);
   const stepAngle = 360 / N;
-  // Adaptive radius: keeps cards comfortable, outward-facing and collision-free
-  const radius = Math.max(360, Math.round((290 / 2) / Math.tan(Math.PI / N) * 1.08));
+  // Adaptive radius: keeps cards comfortable, outward-facing, circular, and collision-free
+  const radius = Math.max(340, Math.round((280 / 2) / Math.tan(Math.PI / N) * 1.12));
 
-  // Active certificate
-  const activeCert = certificates[activeIndex] || certificates[0];
+  // Determine current active certificate
+  const currentActiveIndex = isDesktop && !shouldReduceMotion ? activeIndex : mobileActiveIndex;
+  const activeCert = certificates[currentActiveIndex] || certificates[0];
 
-  // Register GSAP ScrollTrigger plugin client-side
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      gsap.registerPlugin(ScrollTrigger);
+  // Helper for Card Face image: Core Committee shows medal photo
+  const getCardImage = (cert: CertificateItem) => {
+    if (cert.id === "invent-core" && cert.extraImage) {
+      return cert.extraImage;
     }
-  }, []);
+    return cert.image;
+  };
 
-  // Viewport breakpoint detection (desktop is >= 1024px)
+  // Viewport breakpoint detection (desktop 3D ring is >= 768px for laptop & tablet support)
   useEffect(() => {
     const checkViewport = () => {
-      setIsDesktop(window.innerWidth >= 1024);
+      setIsDesktop(window.innerWidth >= 768);
     };
     checkViewport();
     window.addEventListener("resize", checkViewport, { passive: true });
     return () => window.removeEventListener("resize", checkViewport);
   }, []);
 
-  // GSAP ScrollTrigger: Scroll-driven Pinned 3D Carousel with Momentum & Snapping
+  // IntersectionObserver to pause processing when off-screen
   useEffect(() => {
-    if (!isDesktop || shouldReduceMotion) return;
+    const el = containerRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
 
-    const triggerEl = pinTriggerRef.current;
-    if (!triggerEl) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsIntersecting(entry.isIntersecting);
+      },
+      { threshold: 0.1 }
+    );
 
-    // Use gsap.context for robust scoped lifecycle cleanup
-    const ctx = gsap.context(() => {
-      const rotObj = { value: 0 };
-      // Total rotation angle to traverse through all N cards
-      const totalRotation = -(N - 1) * stepAngle;
-      // Scroll travel distance (e.g. 380px per card for comfortable wheel pacing)
-      const scrollDistance = Math.max(1800, (N - 1) * 380);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
-      const st = ScrollTrigger.create({
-        trigger: triggerEl,
-        start: "top top+=75",
-        end: () => `+=${scrollDistance}`,
-        pin: true,
-        scrub: 1.2, // Inertia / momentum: smooth deceleration and coasting after scroll stops
-        snap: {
-          snapTo: 1 / (N - 1), // Snaps accurately to each certificate card
-          duration: { min: 0.25, max: 0.5 },
-          ease: "power1.inOut",
-        },
-        invalidateOnRefresh: true,
-        onUpdate: (self) => {
-          const progress = self.progress;
-          setScrollProgress(progress);
-          const currentRot = progress * totalRotation;
-          rotObj.value = currentRot;
-          setRotation(currentRot);
-
-          // Update active card index based on progress
-          const index = Math.round(progress * (N - 1));
-          if (index >= 0 && index < N) {
-            setActiveIndex(index);
-          }
-        },
-      });
-
-      scrollTriggerInstanceRef.current = st;
-    }, containerRef);
-
-    return () => ctx.revert();
-  }, [isDesktop, shouldReduceMotion, N, stepAngle]);
-
-  // Navigate to specific certificate index by scrolling the ScrollTrigger smoothly
-  const navigateToIndex = useCallback((targetIndex: number) => {
-    const clampedIndex = Math.max(0, Math.min(N - 1, targetIndex));
-    const st = scrollTriggerInstanceRef.current;
-
-    if (st && isDesktop && !shouldReduceMotion) {
-      const targetProgress = clampedIndex / (N - 1);
-      const targetScroll = st.start + targetProgress * (st.end - st.start);
-      window.scrollTo({
-        top: targetScroll,
-        behavior: "smooth",
-      });
-    } else {
-      setActiveIndex(clampedIndex);
-      // For mobile swipe row, scroll into view
-      if (swipeRowRef.current) {
-        const cardWidth = 280;
-        swipeRowRef.current.scrollTo({
-          left: clampedIndex * cardWidth,
-          behavior: "smooth",
-        });
+  // Directly update DOM transform to prevent high-frequency React re-renders during drag/wheel
+  const updateDomRotation = useCallback(
+    (rotDeg: number) => {
+      if (ringRef.current) {
+        ringRef.current.style.transform = `rotateY(${rotDeg}deg)`;
       }
-    }
-  }, [N, isDesktop, shouldReduceMotion]);
 
+      // Calculate active card index
+      const normalizedIndex = ((Math.round(-rotDeg / stepAngle) % N) + N) % N;
+      if (normalizedIndex !== activeIndexRef.current) {
+        activeIndexRef.current = normalizedIndex;
+        setActiveIndex(normalizedIndex);
+      }
+    },
+    [N, stepAngle]
+  );
+
+  // Smooth Spring Animation to target angle
+  const animateToAngle = useCallback(
+    (targetAngle: number, immediate = false) => {
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+
+      if (immediate || shouldReduceMotion) {
+        rotationRef.current = targetAngle;
+        updateDomRotation(targetAngle);
+        setRotation(targetAngle);
+        return;
+      }
+
+      const springStep = () => {
+        const current = rotationRef.current;
+        const diff = targetAngle - current;
+
+        if (Math.abs(diff) < 0.05) {
+          rotationRef.current = targetAngle;
+          updateDomRotation(targetAngle);
+          setRotation(targetAngle);
+          rafIdRef.current = null;
+          return;
+        }
+
+        // Spring damping easing
+        const next = current + diff * 0.16;
+        rotationRef.current = next;
+        updateDomRotation(next);
+        rafIdRef.current = requestAnimationFrame(springStep);
+      };
+
+      rafIdRef.current = requestAnimationFrame(springStep);
+    },
+    [shouldReduceMotion, updateDomRotation]
+  );
+
+  // Snap to nearest card
+  const snapToNearest = useCallback(() => {
+    const current = rotationRef.current;
+    const nearestStep = Math.round(current / stepAngle);
+    const target = nearestStep * stepAngle;
+    animateToAngle(target);
+  }, [stepAngle, animateToAngle]);
+
+  // Inertia coasting physics loop after drag release
+  const startInertiaCoasting = useCallback(
+    (initialVelocity: number) => {
+      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+
+      let vel = initialVelocity;
+
+      const inertiaStep = () => {
+        rotationRef.current += vel;
+        updateDomRotation(rotationRef.current);
+
+        // Friction deceleration
+        vel *= 0.92;
+
+        if (Math.abs(vel) < 0.08) {
+          // Coasting finished -> snap to nearest card
+          snapToNearest();
+          return;
+        }
+
+        rafIdRef.current = requestAnimationFrame(inertiaStep);
+      };
+
+      rafIdRef.current = requestAnimationFrame(inertiaStep);
+    },
+    [updateDomRotation, snapToNearest]
+  );
+
+  // Rotate smoothly to a specific card index (shortest angular distance)
+  const rotateToIndex = useCallback(
+    (targetIndex: number) => {
+      const current = rotationRef.current;
+      const targetBase = -targetIndex * stepAngle;
+      let relDiff = (targetBase - current) % 360;
+      if (relDiff > 180) relDiff -= 360;
+      if (relDiff < -180) relDiff += 360;
+      animateToAngle(current + relDiff);
+    },
+    [stepAngle, animateToAngle]
+  );
+
+  // Step Previous / Next
   const handlePrev = useCallback(() => {
-    navigateToIndex(activeIndex - 1);
-  }, [activeIndex, navigateToIndex]);
+    const current = Math.round(rotationRef.current / stepAngle) * stepAngle;
+    animateToAngle(current + stepAngle);
+  }, [stepAngle, animateToAngle]);
 
   const handleNext = useCallback(() => {
-    navigateToIndex(activeIndex + 1);
-  }, [activeIndex, navigateToIndex]);
+    const current = Math.round(rotationRef.current / stepAngle) * stepAngle;
+    animateToAngle(current - stepAngle);
+  }, [stepAngle, animateToAngle]);
 
-  // Keyboard navigation when container is focused
+  // Pointer Drag Handlers (Mouse / Touch)
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDesktop || shouldReduceMotion) return;
+    if (e.button !== 0) return; // Only primary button
+
+    if (rafIdRef.current) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
+
+    setIsDragging(true);
+    hasDraggedRef.current = false;
+
+    dragStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      startRot: rotationRef.current,
+      lastX: e.clientX,
+      lastTime: performance.now(),
+      velocity: 0,
+    };
+
+    if (stageRef.current) {
+      stageRef.current.setPointerCapture(e.pointerId);
+    }
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging || !isDesktop || shouldReduceMotion) return;
+
+    const deltaX = e.clientX - dragStartRef.current.lastX;
+    const totalDistX = Math.abs(e.clientX - dragStartRef.current.x);
+
+    if (totalDistX > 5) {
+      hasDraggedRef.current = true;
+    }
+
+    // Convert pixel delta to rotational degrees
+    const rotDelta = deltaX * 0.32;
+    rotationRef.current += rotDelta;
+    updateDomRotation(rotationRef.current);
+
+    const now = performance.now();
+    const dt = now - dragStartRef.current.lastTime;
+    if (dt > 0) {
+      dragStartRef.current.velocity = (rotDelta / dt) * 16.67;
+    }
+
+    dragStartRef.current.lastX = e.clientX;
+    dragStartRef.current.lastTime = now;
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    setIsDragging(false);
+
+    try {
+      if (stageRef.current && stageRef.current.hasPointerCapture(e.pointerId)) {
+        stageRef.current.releasePointerCapture(e.pointerId);
+      }
+    } catch {
+      // Ignore if capture was already lost
+    }
+
+    if (hasDraggedRef.current) {
+      const vel = dragStartRef.current.velocity;
+      if (Math.abs(vel) > 0.4) {
+        startInertiaCoasting(vel * 0.85);
+      } else {
+        snapToNearest();
+      }
+    }
+  };
+
+  // Wheel handling:
+  // - Trackpad horizontal scroll / Shift + wheel spins carousel with momentum
+  // - Vertical wheel spins carousel ONLY when active, otherwise page scrolls normally
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el || !isDesktop || shouldReduceMotion) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      if (!isIntersecting) return;
+
+      const isHorizontalScroll = Math.abs(e.deltaX) > Math.abs(e.deltaY) || e.shiftKey;
+
+      if (isHorizontalScroll) {
+        const delta = e.shiftKey ? e.deltaY : e.deltaX;
+        if (Math.abs(delta) > 1.5) {
+          e.preventDefault();
+          if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+
+          rotationRef.current -= delta * 0.28;
+          updateDomRotation(rotationRef.current);
+
+          if (wheelDebounceRef.current) clearTimeout(wheelDebounceRef.current);
+          wheelDebounceRef.current = setTimeout(snapToNearest, 130);
+        }
+        return;
+      }
+
+      // Vertical wheel: preventDefault and spin ONLY when active
+      if (isActive) {
+        e.preventDefault();
+        if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+
+        rotationRef.current -= e.deltaY * 0.22;
+        updateDomRotation(rotationRef.current);
+
+        if (wheelDebounceRef.current) clearTimeout(wheelDebounceRef.current);
+        wheelDebounceRef.current = setTimeout(snapToNearest, 130);
+      }
+    };
+
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => {
+      el.removeEventListener("wheel", handleWheel);
+      if (wheelDebounceRef.current) clearTimeout(wheelDebounceRef.current);
+    };
+  }, [isDesktop, shouldReduceMotion, isIntersecting, isActive, snapToNearest, updateDomRotation]);
+
+  // Click outside to deactivate
+  useEffect(() => {
+    if (!isActive) return;
+
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsActive(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, [isActive]);
+
+  // Keyboard navigation & activation
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      setIsActive(false);
+      return;
+    }
+
+    if (!isActive && (e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      setIsActive(true);
+      return;
+    }
+
     if (e.key === "ArrowLeft") {
       e.preventDefault();
       handlePrev();
@@ -153,19 +375,13 @@ export function CertificateRing({
     const el = swipeRowRef.current;
     if (!el) return;
     const scrollLeft = el.scrollLeft;
-    const cardWidth = el.firstElementChild ? (el.firstElementChild as HTMLElement).offsetWidth + 16 : 280;
+    const cardWidth = el.firstElementChild
+      ? (el.firstElementChild as HTMLElement).offsetWidth + 16
+      : 280;
     const index = Math.round(scrollLeft / cardWidth);
-    if (index >= 0 && index < N && index !== activeIndex) {
-      setActiveIndex(index);
+    if (index >= 0 && index < N && index !== mobileActiveIndex) {
+      setMobileActiveIndex(index);
     }
-  };
-
-  // Helper for Card Face image: Core Committee shows medal photo
-  const getCardImage = (cert: CertificateItem) => {
-    if (cert.id === "invent-core" && cert.extraImage) {
-      return cert.extraImage;
-    }
-    return cert.image;
   };
 
   return (
@@ -173,7 +389,7 @@ export function CertificateRing({
       ref={containerRef}
       tabIndex={0}
       role="region"
-      aria-label="Certificates Pinned 3D Showcase"
+      aria-label="Certificates 3D Showcase"
       onKeyDown={handleKeyDown}
       className="relative w-full focus-visible:outline-none"
     >
@@ -182,26 +398,37 @@ export function CertificateRing({
         Active certificate: {activeCert.title}, issued by {activeCert.issuer}.
       </div>
 
-      {/* PIN TRIGGER WRAPPER FOR SCROLL-DRIVEN 3D PINNING */}
-      <div
-        ref={pinTriggerRef}
-        className="w-full flex flex-col justify-between py-6"
-      >
-        {/* DESKTOP (>=1024px) SCROLL-DRIVEN 3D PERSPECTIVE RING */}
+      {/* 3D CAROUSEL / MOBILE SWIPE STAGE */}
+      <div className="w-full py-4">
         {isDesktop && !shouldReduceMotion ? (
-          <div className="relative w-full h-[450px] flex items-center justify-center select-none overflow-hidden">
+          /* DESKTOP (>=768px) 3D PERSPECTIVE RING */
+          <div
+            ref={stageRef}
+            onClick={() => {
+              if (!isActive) setIsActive(true);
+            }}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
+            className={`relative w-full h-[500px] flex items-center justify-center select-none overflow-hidden rounded-3xl transition-all duration-300 ${
+              isActive
+                ? "ring-2 ring-[#2F6BFF]/40 shadow-[0_0_40px_rgba(47,107,255,0.18)] cursor-grab active:cursor-grabbing bg-[rgba(11,18,32,0.03)] dark:bg-[rgba(232,238,247,0.02)]"
+                : "cursor-pointer hover:ring-1 hover:ring-[rgba(47,107,255,0.25)]"
+            }`}
+          >
             {/* 3D Perspective Stage */}
             <div
               className="w-full h-full flex items-center justify-center"
               style={{
-                perspective: "1350px",
-                perspectiveOrigin: "50% 48%",
+                perspective: "1250px",
+                perspectiveOrigin: "50% 50%",
               }}
             >
-              {/* Rotating Cylinder Driven Directly by Scroll Momentum */}
+              {/* Rotating Cylinder Driven Directly on GPU */}
               <div
                 ref={ringRef}
-                className="relative w-[300px] h-[370px]"
+                className="relative w-[280px] sm:w-[300px] h-[370px] sm:h-[390px]"
                 style={{
                   transformStyle: "preserve-3d",
                   transform: `rotateY(${rotation}deg)`,
@@ -210,28 +437,32 @@ export function CertificateRing({
               >
                 {certificates.map((cert, i) => {
                   const baseAngle = i * stepAngle;
-                  let relAngle = (baseAngle + rotation) % 360;
-                  if (relAngle > 180) relAngle -= 360;
-                  if (relAngle < -180) relAngle += 360;
-                  const absAngle = Math.abs(relAngle);
-                  const isCentred = absAngle < stepAngle / 2;
+                  const isCentred = i === activeIndex;
 
-                  // Scale down and dim cards as they turn away from center
-                  const progress = Math.min(1, absAngle / 180);
-                  const scale = Math.max(0.76, 1.04 - progress * 0.28);
-                  const opacity = Math.max(0.22, 1 - progress * 0.78);
+                  // Angular distance in steps to scale and fade side cards
+                  let stepDiff = Math.abs(i - activeIndex);
+                  if (stepDiff > N / 2) stepDiff = N - stepDiff;
 
                   const cardImg = getCardImage(cert);
                   const isMedalCard = cert.id === "invent-core";
 
+                  // Scale & Opacity based on distance from front
+                  const scale = isCentred ? 1.03 : stepDiff === 1 ? 0.94 : 0.85;
+                  const opacity = isCentred ? 1 : stepDiff === 1 ? 0.65 : 0.28;
+
                   return (
                     <div
                       key={cert.id}
-                      onClick={() => navigateToIndex(i)}
-                      className={`absolute inset-0 rounded-2xl border cursor-pointer p-5 flex flex-col justify-between transition-[opacity,box-shadow,border-color,background-color] duration-200 ${
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!hasDraggedRef.current) {
+                          rotateToIndex(i);
+                        }
+                      }}
+                      className={`absolute inset-0 rounded-2xl border p-5 flex flex-col justify-between transition-[opacity,transform,box-shadow,border-color,background-color] duration-250 ease-out ${
                         isCentred
-                          ? "bg-[#111A2E] text-[#E8EEF7] border-[#2F6BFF] shadow-2xl ring-2 ring-[#2F6BFF]/40 z-30"
-                          : "bg-[#0B1220]/95 text-[#CBD5E1] border-[rgba(232,238,247,0.14)] shadow-md hover:border-[#2F6BFF]/40 z-10"
+                          ? "bg-[#111A2E] text-[#E8EEF7] border-[#2F6BFF] shadow-[0_12px_40px_rgba(47,107,255,0.3)] ring-2 ring-[#2F6BFF]/40 z-30"
+                          : "bg-[#0B1220]/95 text-[#CBD5E1] border-[rgba(232,238,247,0.14)] shadow-md hover:border-[#2F6BFF]/40 hover:opacity-80 z-10"
                       }`}
                       style={{
                         transform: `rotateY(${baseAngle}deg) translateZ(${radius}px) scale(${scale})`,
@@ -252,7 +483,7 @@ export function CertificateRing({
                         )}
                       </div>
 
-                      {/* Card Face: Image or Text-only Card */}
+                      {/* Card Face: Medal Photo or Document Preview or Program Icon */}
                       <div className="my-auto py-2">
                         {cardImg ? (
                           <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden border border-[rgba(232,238,247,0.12)] bg-[#0B1220] shadow-inner">
@@ -298,40 +529,30 @@ export function CertificateRing({
             {/* Left/Right Arrow Navigation Buttons */}
             <button
               type="button"
-              disabled={activeIndex <= 0}
               onClick={(e) => {
                 e.stopPropagation();
                 handlePrev();
               }}
               aria-label="Previous certificate"
-              className={`absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-[#111A2E]/90 border border-[rgba(232,238,247,0.2)] text-[#E8EEF7] shadow-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6BFF] z-40 ${
-                activeIndex <= 0
-                  ? "opacity-30 cursor-not-allowed"
-                  : "hover:border-[#2F6BFF] hover:text-[#457DFF]"
-              }`}
+              className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-[#111A2E]/90 hover:bg-[#111A2E] border border-[rgba(232,238,247,0.2)] text-[#E8EEF7] hover:border-[#2F6BFF] hover:text-[#457DFF] shadow-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6BFF] z-40"
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
 
             <button
               type="button"
-              disabled={activeIndex >= N - 1}
               onClick={(e) => {
                 e.stopPropagation();
                 handleNext();
               }}
               aria-label="Next certificate"
-              className={`absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-[#111A2E]/90 border border-[rgba(232,238,247,0.2)] text-[#E8EEF7] shadow-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6BFF] z-40 ${
-                activeIndex >= N - 1
-                  ? "opacity-30 cursor-not-allowed"
-                  : "hover:border-[#2F6BFF] hover:text-[#457DFF]"
-              }`}
+              className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-[#111A2E]/90 hover:bg-[#111A2E] border border-[rgba(232,238,247,0.2)] text-[#E8EEF7] hover:border-[#2F6BFF] hover:text-[#457DFF] shadow-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6BFF] z-40"
             >
               <ChevronRight className="w-5 h-5" />
             </button>
           </div>
         ) : (
-          /* MOBILE & REDUCED MOTION: FLAT HORIZONTAL SWIPE ROW */
+          /* MOBILE (<768px) & REDUCED MOTION: FLAT HORIZONTAL SWIPE ROW */
           <div
             ref={swipeRowRef}
             onScroll={handleMobileScroll}
@@ -340,13 +561,13 @@ export function CertificateRing({
             aria-label="Certificates swipe gallery"
           >
             {certificates.map((cert, idx) => {
-              const isSelected = idx === activeIndex;
+              const isSelected = idx === mobileActiveIndex;
               const cardImg = getCardImage(cert);
 
               return (
                 <div
                   key={cert.id}
-                  onClick={() => setActiveIndex(idx)}
+                  onClick={() => setMobileActiveIndex(idx)}
                   className={`snap-center flex-shrink-0 w-[260px] sm:w-[290px] rounded-2xl bg-white dark:bg-[#111A2E] border p-5 flex flex-col justify-between transition-all shadow-sm ${
                     isSelected
                       ? "border-[#2F6BFF] ring-2 ring-[#2F6BFF]/30 dark:border-[#457DFF]"
@@ -400,32 +621,47 @@ export function CertificateRing({
           </div>
         )}
 
-        {/* PINNED GALLERY SCROLL PROGRESS & INTERACTION HINT */}
-        <div className="mt-3 mb-6 flex flex-col sm:flex-row items-center justify-between gap-3 px-4 max-w-3xl mx-auto w-full font-mono text-xs text-[rgba(11,18,32,0.65)] dark:text-[#94A3B8]">
-          <div className="inline-flex items-center gap-2">
+        {/* ACTIVATION HINT DIRECTLY BELOW THE RING */}
+        <div className="mt-4 mb-6 flex flex-col sm:flex-row items-center justify-between gap-3 px-4 max-w-3xl mx-auto w-full font-mono text-xs text-[rgba(11,18,32,0.65)] dark:text-[#94A3B8]">
+          <div className="inline-flex items-center gap-2" aria-live="polite">
             <MousePointer2 className="w-3.5 h-3.5 text-[#2F6BFF] dark:text-[#457DFF]" aria-hidden="true" />
-            {isDesktop && !shouldReduceMotion ? (
-              <span>Scroll down to advance carousel • Or use Left/Right keys</span>
-            ) : (
+            {!isDesktop || shouldReduceMotion ? (
               <span>Swipe to browse certificates</span>
+            ) : (
+              <AnimatePresence mode="wait">
+                {isActive ? (
+                  <motion.span
+                    key="active-hint"
+                    initial={shouldReduceMotion ? {} : { opacity: 0, y: 3 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={shouldReduceMotion ? {} : { opacity: 0, y: -3 }}
+                    transition={{ duration: 0.18 }}
+                    className="text-[#2F6BFF] dark:text-[#457DFF] font-semibold"
+                  >
+                    Carousel active. Scroll or drag to spin. Press Esc or click outside to release.
+                  </motion.span>
+                ) : (
+                  <motion.span
+                    key="inactive-hint"
+                    initial={shouldReduceMotion ? {} : { opacity: 0, y: 3 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={shouldReduceMotion ? {} : { opacity: 0, y: -3 }}
+                    transition={{ duration: 0.18 }}
+                  >
+                    Click to activate the certificate carousel • Drag to spin
+                  </motion.span>
+                )}
+              </AnimatePresence>
             )}
           </div>
 
-          {/* Step indicator */}
+          {/* Active Step Indicator */}
           <div className="flex items-center gap-2">
             <span className="text-[#2F6BFF] dark:text-[#457DFF] font-semibold">
-              0{activeIndex + 1}
+              0{currentActiveIndex + 1}
             </span>
             <span>/</span>
             <span>0{N}</span>
-            {isDesktop && !shouldReduceMotion && (
-              <div className="w-16 h-1.5 rounded-full bg-[rgba(11,18,32,0.1)] dark:bg-[rgba(232,238,247,0.1)] overflow-hidden ml-1">
-                <div
-                  className="h-full bg-[#2F6BFF] dark:bg-[#457DFF] transition-all duration-150"
-                  style={{ width: `${Math.round(scrollProgress * 100)}%` }}
-                />
-              </div>
-            )}
           </div>
         </div>
 
