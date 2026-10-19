@@ -6,6 +6,7 @@ import { certificates, CertificateItem } from "@/data/certificates";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { Award, X, ExternalLink, Calendar, ShieldCheck, Medal } from "lucide-react";
 import { CertificateRing } from "./CertificateRing";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 
 type CertificateCategory =
   | "All"
@@ -34,6 +35,13 @@ export function Certificates() {
   const modalRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const shouldReduceMotion = useReducedMotion();
+
+  // Refresh ScrollTrigger calculations when toggling between 3D Ring and List Grid
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      ScrollTrigger.refresh();
+    }
+  }, [viewMode]);
 
   // Hide any entry with verified: false
   const verifiedCertificates = certificates.filter((c) => c.verified);
