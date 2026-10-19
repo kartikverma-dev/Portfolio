@@ -52,9 +52,6 @@ export function ProjectBlueprintPlaceholder({
             FIG {number} {"//"} SCHEMATIC
           </span>
         </div>
-        <span className="text-[10px] text-[#94A3B8]">
-          STAGE: PROTO
-        </span>
       </div>
 
       {/* Center Wireframe Motif */}
@@ -70,7 +67,7 @@ export function ProjectBlueprintPlaceholder({
         </div>
       </div>
 
-      {/* Bottom Honesty Label per user request: "Illustrative diagram, not a screenshot" */}
+      {/* Bottom Label: "Illustrative diagram, not a screenshot" */}
       <div className="relative z-10 flex items-center justify-between pt-3 border-t border-[rgba(232,238,247,0.08)] text-[10px]">
         <div className="flex items-center gap-1.5">
           <span className="w-1.5 h-1.5 rounded-full bg-[#FF7A59]" />
@@ -78,9 +75,6 @@ export function ProjectBlueprintPlaceholder({
             Illustrative diagram, not a screenshot
           </span>
         </div>
-        <span className="text-[9px] text-[#64748B] uppercase">
-          Concept Spec
-        </span>
       </div>
     </div>
   );

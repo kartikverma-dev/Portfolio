@@ -127,9 +127,6 @@ export function Footer() {
         <div>
           <span>© 2026 Kartik Verma. Designed & built with Next.js, Motion & Tailwind CSS.</span>
         </div>
-        <div className="text-[11px] text-[var(--text-secondary)]">
-          <span>Truthful documentation • Zero fabricated metrics or awards</span>
-        </div>
       </div>
     </footer>
   );

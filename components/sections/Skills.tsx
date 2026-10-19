@@ -113,37 +113,26 @@ export function Skills() {
                   </p>
 
                   {/* Skills List */}
-                  <div className="space-y-3">
+                  <div className="space-y-2.5">
                     {filteredSkills.map((skill) => (
                       <div
                         key={skill.name}
-                        className="p-3 rounded-lg bg-[#F4F7FB] dark:bg-[#0B1220] border border-[rgba(11,18,32,0.06)] dark:border-[rgba(232,238,247,0.06)] flex flex-col justify-between gap-1.5 transition-all hover:border-[#2F6BFF]/30"
+                        className="p-3 rounded-lg bg-[#F4F7FB] dark:bg-[#0B1220] border border-[rgba(11,18,32,0.06)] dark:border-[rgba(232,238,247,0.06)] flex items-center justify-between gap-2 transition-all hover:border-[#2F6BFF]/30"
                       >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-medium text-xs sm:text-sm text-[#0B1220] dark:text-[#E8EEF7]">
-                            {skill.name}
-                          </span>
-                          <span
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono border ${getBadgeStyle(
-                              skill.proficiency
-                            )}`}
-                          >
-                            {getIcon(skill.proficiency)}
-                            <span>{skill.proficiency}</span>
-                          </span>
-                        </div>
-                        {skill.context && (
-                          <span className="text-[11px] font-mono text-[rgba(11,18,32,0.55)] dark:text-[#64748B]">
-                            {skill.context}
-                          </span>
-                        )}
+                        <span className="font-medium text-xs sm:text-sm text-[#0B1220] dark:text-[#E8EEF7]">
+                          {skill.name}
+                        </span>
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono border flex-shrink-0 ${getBadgeStyle(
+                            skill.proficiency
+                          )}`}
+                        >
+                          {getIcon(skill.proficiency)}
+                          <span>{skill.proficiency}</span>
+                        </span>
                       </div>
                     ))}
                   </div>
-                </div>
-
-                <div className="mt-6 pt-4 border-t border-[rgba(11,18,32,0.08)] dark:border-[rgba(232,238,247,0.08)] text-[11px] font-mono text-[rgba(11,18,32,0.5)] dark:text-[#64748B]">
-                  Applied in verified projects & lab tests
                 </div>
               </motion.div>
             );

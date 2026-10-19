@@ -3,11 +3,11 @@
 import React from "react";
 import { certifications } from "@/data/certifications";
 import { motion } from "motion/react";
-import { Award, Users, ShieldCheck, Clock } from "lucide-react";
+import { Award, Users, ShieldCheck } from "lucide-react";
 
 export function Certifications() {
   const certificationsList = certifications.filter(
-    (c) => c.category === "Certification" || c.category === "Course" || c.category === "Program"
+    (c) => (c.category === "Certification" || c.category === "Course" || c.category === "Program") && c.verified
   );
 
   const campusList = certifications.filter((c) => c.category === "Campus Role");
@@ -62,17 +62,10 @@ export function Certifications() {
                       </h4>
                     </div>
 
-                    {item.verified ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
-                        <ShieldCheck className="w-3 h-3" />
-                        <span>Documented</span>
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
-                        <Clock className="w-3 h-3" />
-                        <span>Verification Placeholder</span>
-                      </span>
-                    )}
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                      <ShieldCheck className="w-3 h-3" />
+                      <span>Documented</span>
+                    </span>
                   </div>
 
                   {item.notes && (
@@ -94,7 +87,7 @@ export function Certifications() {
 
             <div className="p-6 sm:p-7 rounded-2xl bg-white dark:bg-[#111A2E] border border-[rgba(11,18,32,0.12)] dark:border-[rgba(232,238,247,0.12)] shadow-sm space-y-6 font-mono text-xs">
               <p className="text-[rgba(11,18,32,0.8)] dark:text-[#CBD5E1] leading-relaxed">
-                Active involvement in student technology initiatives, peer mentorship, and inter-college events at IMS Ghaziabad.
+                Active involvement in student technology initiatives at IMS Ghaziabad.
               </p>
 
               <div className="space-y-4 pt-2 border-t border-[rgba(11,18,32,0.08)] dark:border-[rgba(232,238,247,0.08)]">
@@ -111,10 +104,6 @@ export function Certifications() {
                     </div>
                   </div>
                 ))}
-              </div>
-
-              <div className="pt-4 border-t border-[rgba(11,18,32,0.08)] dark:border-[rgba(232,238,247,0.08)] text-[11px] text-[rgba(11,18,32,0.5)] dark:text-[#64748B]">
-                Restrained documentation • No fabricated event statistics or attendance figures.
               </div>
             </div>
           </div>

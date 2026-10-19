@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect, useRef } from "react";
 import { projects, Project } from "@/data/projects";
 import { ProjectBlueprintPlaceholder } from "@/components/ui/ProjectBlueprintPlaceholder";
 import { motion, AnimatePresence } from "motion/react";
-import { ArrowUpRight, ChevronDown, ChevronUp, ShieldCheck } from "lucide-react";
+import { ArrowUpRight, ChevronDown, ChevronUp } from "lucide-react";
 import { GitHubIcon } from "@/components/ui/SocialIcons";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -116,7 +116,7 @@ export function Work() {
             WORK & PROTOTYPES
           </h2>
           <p className="mt-2 text-sm sm:text-base text-[var(--text-secondary)] max-w-xl">
-            Real codebases, datasets, and hardware prototypes — documented honestly without fabricated metrics or unconfirmed claims.
+            Selected codebases, machine learning experiments, interactive applications, and hardware prototypes.
           </p>
         </div>
 
@@ -218,19 +218,12 @@ export function Work() {
                         {project.description}
                       </p>
 
-                      {/* Plain Status Label & Limitation */}
-                      <div className="mt-4 space-y-2">
-                        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-[var(--border-color)]/25 text-xs font-mono text-[var(--text-main)]">
-                          <ShieldCheck className="w-3.5 h-3.5 text-[#2F6BFF] dark:text-[#457DFF]" />
-                          <span>{project.statusLabel}</span>
-                        </div>
-
-                        {project.limitation && (
-                          <p className="text-xs font-mono text-[var(--text-secondary)] pl-1">
-                            <span className="text-[var(--text-main)] font-semibold">Note:</span> {project.limitation}
-                          </p>
-                        )}
-                      </div>
+                      {/* Limitation / Scope Note */}
+                      {project.limitation && (
+                        <p className="mt-4 text-xs font-mono text-[var(--text-secondary)] pl-1">
+                          <span className="text-[var(--text-main)] font-semibold">Note:</span> {project.limitation}
+                        </p>
+                      )}
                     </div>
 
                     {/* Technologies & Active Links */}
@@ -247,21 +240,9 @@ export function Work() {
                       </div>
 
                       <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-[var(--border-color)]/70">
-                        {project.links.map((link, lIdx) => {
-                          if (!link.verified) {
-                            return (
-                              <span
-                                key={lIdx}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-mono text-[var(--text-secondary)] bg-[var(--border-color)]/20 border border-[var(--border-color)]/40 cursor-not-allowed"
-                                title="URL unconfirmed per MASTER_PROMPT.md — omitted"
-                              >
-                                <span>{link.label}</span>
-                                <span className="text-[10px] text-[#FF7A59] uppercase">(Unconfirmed)</span>
-                              </span>
-                            );
-                          }
-
-                          return (
+                        {project.links
+                          .filter((link) => link.verified)
+                          .map((link, lIdx) => (
                             <a
                               key={lIdx}
                               href={link.url}
@@ -277,8 +258,7 @@ export function Work() {
                               <span>{link.label}</span>
                               <ArrowUpRight className="w-3.5 h-3.5" />
                             </a>
-                          );
-                        })}
+                          ))}
                       </div>
                     </div>
                   </div>
@@ -368,7 +348,7 @@ export function Work() {
                     </div>
 
                     <div className="flex items-center justify-between text-xs font-mono text-[var(--text-secondary)]">
-                      <span>Status: {project.statusLabel}</span>
+                      <span className="text-[11px] text-[var(--text-secondary)]">{project.category}</span>
                       <a
                         href={project.links[0]?.url}
                         target="_blank"

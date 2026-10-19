@@ -31,7 +31,7 @@ export const experiences: ExperienceItem[] = [
     spotlight: {
       title: "Credge Clarity Engine (CCE)",
       description:
-        "Enterprise AI decision-assurance and governance initiative. Contributed to technical research and documentation. Confidential implementation details protected; no invented deliverables, metrics or customers.",
+        "Enterprise AI decision-assurance and governance initiative associated with my internship. Confidential implementation details are not shared.",
     },
   },
 ];

@@ -147,7 +147,7 @@ export function Lab() {
               THE LAB
             </h2>
             <p className="mt-2 text-sm sm:text-base text-[#94A3B8] max-w-xl">
-              Research notebook for prototypes and experiments — clearly separating completed work from prototypes and research.
+              Research notebook for prototypes, hardware explorations, and creative technology experiments.
             </p>
           </div>
 

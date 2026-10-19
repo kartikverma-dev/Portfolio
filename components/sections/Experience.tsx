@@ -3,7 +3,7 @@
 import React from "react";
 import { experiences } from "@/data/experience";
 import { motion } from "motion/react";
-import { Calendar, ShieldAlert, CheckCircle2, Cpu } from "lucide-react";
+import { Calendar, CheckCircle2, Cpu } from "lucide-react";
 
 export function Experience() {
   return (
@@ -42,7 +42,7 @@ export function Experience() {
                 Applied AI Product Development
               </h3>
               <p className="mt-4 text-base text-[rgba(11,18,32,0.8)] dark:text-[#CBD5E1] leading-relaxed">
-                Professional learning and applied AI product development at CredgeSol AI Private Limited. Focused on tools, prompt engineering, and structured documentation, without inflated titles or fabricated metrics.
+                Professional learning and applied AI product development at CredgeSol AI Private Limited. Focused on AI tools and workflow development, prompt engineering, and structured documentation.
               </p>
 
               {/* Verified Appointment Factsheet */}
@@ -121,11 +121,6 @@ export function Experience() {
                       <p className="text-xs sm:text-sm text-[rgba(11,18,32,0.85)] dark:text-[#CBD5E1] leading-relaxed">
                         {exp.spotlight.description}
                       </p>
-
-                      <div className="mt-3 flex items-center gap-2 text-[11px] font-mono text-[rgba(11,18,32,0.6)] dark:text-[#94A3B8] pt-2 border-t border-[rgba(11,18,32,0.08)] dark:border-[rgba(232,238,247,0.08)]">
-                        <ShieldAlert className="w-3.5 h-3.5 text-[#FF7A59]" />
-                        <span>No Confidential Implementation Details Disclosed</span>
-                      </div>
                     </div>
                   </div>
                 )}

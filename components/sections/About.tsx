@@ -48,7 +48,7 @@ export function About() {
               </p>
 
               <p>
-                In software and AI, I work with local LLMs using Ollama (Qwen, Gemma), train YOLO object-detection models, explore computer vision with OpenCV and MediaPipe, and build interfaces with React, Next.js, and Tailwind CSS.
+                In software and AI, I work with local LLMs using Ollama (Qwen, Gemma), work with YOLO-based object detection, explore computer vision with MediaPipe, and build interfaces with React, Next.js, and Tailwind CSS.
               </p>
 
               <p>

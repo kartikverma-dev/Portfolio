@@ -1,9 +1,9 @@
 export type ProjectStatus =
-  | "Completed"
-  | "In Progress"
   | "Prototype"
-  | "Research Concept"
-  | "Hardware Prototype";
+  | "In progress"
+  | "Concept"
+  | "Research"
+  | "Experiment";
 
 export interface ProjectLink {
   type: "github" | "live" | "demo" | "profile";
@@ -37,12 +37,10 @@ export const projects: Project[] = [
     technologies: [
       "Python",
       "Ultralytics YOLO",
-      "OpenCV",
       "Computer Vision",
-      "FastAPI",
     ],
-    status: "In Progress",
-    statusLabel: "Dataset Split: 4,652 Train / 1,329 Val / 666 Test",
+    status: "Prototype",
+    statusLabel: "Prototype",
     limitation:
       "Prototype document-screening tool; not guaranteed identity verification or production certified. Real personal data is never shown.",
     featuredOnHome: true,
@@ -57,7 +55,7 @@ export const projects: Project[] = [
         type: "github",
         url: "https://github.com/kartikverma-dev/IDGUARDsvg",
         label: "GitHub Repository (Unconfirmed)",
-        verified: false, // Unconfirmed spelling per MASTER_PROMPT.md; do not render as active link
+        verified: false, // Unconfirmed spelling per MASTER_PROMPT.md; hidden from public UI
       },
       {
         type: "profile",
@@ -74,9 +72,9 @@ export const projects: Project[] = [
     category: "AI, Research",
     description:
       "Platform for tracking 58 AI concepts, maturity statuses, evidence-based scoring and learning priorities.",
-    technologies: ["AI Research", "Workflow Automation", "React", "Next.js"],
+    technologies: ["AI Research", "Next.js"],
     status: "Prototype",
-    statusLabel: "86.7% Agreement with Senior AI Architects",
+    statusLabel: "Prototype",
     limitation:
       "Reported agreement with senior AI architects on the platform's scoring. Not a general accuracy or commercial-performance claim.",
     featuredOnHome: true,
@@ -97,8 +95,8 @@ export const projects: Project[] = [
     description:
       "AI platform concept with a Rust backend and a Next.js dashboard.",
     technologies: ["Rust", "Next.js", "TypeScript", "AI Integration", "Tailwind CSS"],
-    status: "Research Concept",
-    statusLabel: "Architectural Concept",
+    status: "Concept",
+    statusLabel: "Concept",
     limitation: "Concept architecture; not in production usage or customer deployment.",
     featuredOnHome: true,
     links: [
@@ -118,8 +116,8 @@ export const projects: Project[] = [
     description:
       "Dog-training SaaS concept showing interface design, workflow planning and architecture.",
     technologies: ["Next.js", "TypeScript", "UI/UX Architecture", "Tailwind CSS"],
-    status: "Research Concept",
-    statusLabel: "Design & Workflow Concept",
+    status: "Concept",
+    statusLabel: "Concept",
     limitation: "Interface and planning concept; no revenue, customers, or operational metrics.",
     featuredOnHome: false,
     links: [
@@ -139,8 +137,8 @@ export const projects: Project[] = [
     description:
       "Android smart-camera and computer-vision concept exploring edge inferencing on mobile hardware.",
     technologies: ["Android", "Computer Vision", "TensorFlow Lite", "Java/Kotlin"],
-    status: "Prototype",
-    statusLabel: "Work in Progress",
+    status: "In progress",
+    statusLabel: "In progress",
     limitation: "Prototype exploration; unfinished components remain work in progress.",
     featuredOnHome: false,
     links: [
@@ -166,8 +164,8 @@ export const projects: Project[] = [
       "Mecanum Wheels",
       "Motor Control",
     ],
-    status: "Hardware Prototype",
-    statusLabel: "Robotics Exploration Active",
+    status: "Prototype",
+    statusLabel: "Prototype",
     limitation: "Robotics prototype; no autonomous navigation or advanced AI claimed.",
     featuredOnHome: true,
     links: [
@@ -187,8 +185,8 @@ export const projects: Project[] = [
     description:
       "Experiment with Arduino Uno, ESP8266 and storage or networking ideas on tiny hardware.",
     technologies: ["Arduino Uno", "ESP8266", "Embedded Prototyping", "IoT Concepts"],
-    status: "Prototype",
-    statusLabel: "Hardware Experiment",
+    status: "Experiment",
+    statusLabel: "Experiment",
     limitation: "Early hardware experiment; separated demonstrated features from planned ones.",
     featuredOnHome: false,
     links: [
@@ -208,8 +206,8 @@ export const projects: Project[] = [
     description:
       "LUMOS RF (research and prototype), LUMOS ROVER (in progress), LUMOS AI PIN (prototype and research).",
     technologies: ["RF Prototyping", "Embedded Systems", "Sensors", "Hardware Design"],
-    status: "Hardware Prototype",
-    statusLabel: "Multi-device Research Suite",
+    status: "Research",
+    statusLabel: "Research",
     limitation: "Experimental hardware research; no finalized commercial specifications.",
     featuredOnHome: false,
     links: [
@@ -236,8 +234,8 @@ export const projects: Project[] = [
       "HCI",
     ],
     status: "Prototype",
-    statusLabel: "Gesture Tracking Validated",
-    limitation: "Gesture interaction experiment in progress; not a complete device-to-device file transfer.",
+    statusLabel: "Hand landmark tracking tested",
+    limitation: "Hand landmark tracking tested on Samsung Galaxy A55. Gesture interaction experiment in progress; not a complete file transfer.",
     featuredOnHome: true,
     links: [
       {
@@ -256,8 +254,8 @@ export const projects: Project[] = [
     description:
       "Experiments with ComfyUI, Hugging Face models, Google Colab and GPU-based video generation.",
     technologies: ["ComfyUI", "Hugging Face Models", "Google Colab", "Python"],
-    status: "Prototype",
-    statusLabel: "Generative Experiments",
+    status: "Experiment",
+    statusLabel: "Experiment",
     limitation: "Workflow experimentation; no custom trained models or unverified output claims.",
     featuredOnHome: false,
     links: [
