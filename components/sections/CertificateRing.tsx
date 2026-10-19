@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 import { CertificateItem } from "@/data/certificates";
 import { motion, AnimatePresence } from "motion/react";
-import { ChevronLeft, ChevronRight, Award, ExternalLink, Calendar, MousePointer2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Award, ExternalLink, Calendar, MousePointer2, Sparkles, Maximize2 } from "lucide-react";
 
 interface CertificateRingProps {
   certificates: CertificateItem[];
@@ -17,34 +17,39 @@ export function CertificateRing({
   onOpenModal,
   shouldReduceMotion,
 }: CertificateRingProps) {
+  // Continuous rotation angle in degrees
   const [rotation, setRotation] = useState(0);
+  // Center active card index
   const [activeIndex, setActiveIndex] = useState(0);
-  const [isActive, setIsActive] = useState(false);
+  // Whether the carousel is currently in motion (scrolling / dragging)
+  const [isScrolling, setIsScrolling] = useState(false);
+  // Whether the active card has expanded into the broad widened state
+  const [isExpanded, setIsExpanded] = useState(true);
   const [isDesktop, setIsDesktop] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [isIntersecting, setIsIntersecting] = useState(true);
 
-  // Fallback active index for mobile swipe row
+  // Mobile fallback index for horizontal swipe
   const [mobileActiveIndex, setMobileActiveIndex] = useState(0);
 
+  // DOM Refs
   const containerRef = useRef<HTMLDivElement>(null);
-  const ringRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
+  const ringRef = useRef<HTMLDivElement>(null);
   const swipeRowRef = useRef<HTMLDivElement>(null);
-  const openBtnRef = useRef<HTMLButtonElement>(null);
+  const cardTriggerRefs = useRef<Map<string, HTMLButtonElement | null>>(new Map());
 
-  // Physics and Animation Refs
+  // Animation and physics state
   const rotationRef = useRef(0);
   const activeIndexRef = useRef(0);
+  const isScrollingRef = useRef(false);
   const rafIdRef = useRef<number | null>(null);
-  const wheelDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const stopTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const expandTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Drag interaction tracking
+  // Drag tracking
   const hasDraggedRef = useRef(false);
-  const dragStartRef = useRef({
-    x: 0,
-    y: 0,
-    startRot: 0,
+  const dragRef = useRef({
+    startX: 0,
     lastX: 0,
     lastTime: 0,
     velocity: 0,
@@ -52,10 +57,9 @@ export function CertificateRing({
 
   const N = Math.max(1, certificates.length);
   const stepAngle = 360 / N;
-  // Adaptive radius: keeps cards comfortable, outward-facing, circular, and collision-free
-  const radius = Math.max(340, Math.round((280 / 2) / Math.tan(Math.PI / N) * 1.12));
+  // Adaptive 3D radius for 7 outward-facing cards
+  const radius = Math.max(360, Math.round((280 / 2) / Math.tan(Math.PI / N) * 1.15));
 
-  // Determine current active certificate
   const currentActiveIndex = isDesktop && !shouldReduceMotion ? activeIndex : mobileActiveIndex;
   const activeCert = certificates[currentActiveIndex] || certificates[0];
 
@@ -67,65 +71,50 @@ export function CertificateRing({
     return cert.image;
   };
 
-  // Viewport breakpoint detection (desktop 3D ring is >= 768px for laptop & tablet support)
+  // Viewport detection: desktop 3D loop is active on screens >= 768px
   useEffect(() => {
-    const checkViewport = () => {
+    const handleResize = () => {
       setIsDesktop(window.innerWidth >= 768);
     };
-    checkViewport();
-    window.addEventListener("resize", checkViewport, { passive: true });
-    return () => window.removeEventListener("resize", checkViewport);
+    handleResize();
+    window.addEventListener("resize", handleResize, { passive: true });
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // IntersectionObserver to pause processing when off-screen
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el || typeof IntersectionObserver === "undefined") return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        setIsIntersecting(entry.isIntersecting);
-      },
-      { threshold: 0.1 }
-    );
-
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
-  // Directly update DOM transform to prevent high-frequency React re-renders during drag/wheel
+  // Update ring rotation directly on GPU for butter-smooth 60/120 FPS
   const updateDomRotation = useCallback(
     (rotDeg: number) => {
       if (ringRef.current) {
         ringRef.current.style.transform = `rotateY(${rotDeg}deg)`;
       }
 
-      // Calculate active card index
-      const normalizedIndex = ((Math.round(-rotDeg / stepAngle) % N) + N) % N;
-      if (normalizedIndex !== activeIndexRef.current) {
-        activeIndexRef.current = normalizedIndex;
-        setActiveIndex(normalizedIndex);
+      // Compute nearest front card index
+      const nearestIdx = ((Math.round(-rotDeg / stepAngle) % N) + N) % N;
+      if (nearestIdx !== activeIndexRef.current) {
+        activeIndexRef.current = nearestIdx;
+        setActiveIndex(nearestIdx);
       }
     },
     [N, stepAngle]
   );
 
-  // Smooth Spring Animation to target angle
+  // Smooth Spring Animation to target rotation
   const animateToAngle = useCallback(
-    (targetAngle: number, immediate = false) => {
+    (targetAngle: number, onComplete?: () => void) => {
       if (rafIdRef.current) {
         cancelAnimationFrame(rafIdRef.current);
         rafIdRef.current = null;
       }
 
-      if (immediate || shouldReduceMotion) {
+      if (shouldReduceMotion) {
         rotationRef.current = targetAngle;
         updateDomRotation(targetAngle);
         setRotation(targetAngle);
+        onComplete?.();
         return;
       }
 
-      const springStep = () => {
+      const springLoop = () => {
         const current = rotationRef.current;
         const diff = targetAngle - current;
 
@@ -134,85 +123,121 @@ export function CertificateRing({
           updateDomRotation(targetAngle);
           setRotation(targetAngle);
           rafIdRef.current = null;
+          onComplete?.();
           return;
         }
 
-        // Spring damping easing
+        // Smooth spring easing
         const next = current + diff * 0.16;
         rotationRef.current = next;
         updateDomRotation(next);
-        rafIdRef.current = requestAnimationFrame(springStep);
+        rafIdRef.current = requestAnimationFrame(springLoop);
       };
 
-      rafIdRef.current = requestAnimationFrame(springStep);
+      rafIdRef.current = requestAnimationFrame(springLoop);
     },
     [shouldReduceMotion, updateDomRotation]
   );
 
-  // Snap to nearest card
-  const snapToNearest = useCallback(() => {
-    const current = rotationRef.current;
-    const nearestStep = Math.round(current / stepAngle);
-    const target = nearestStep * stepAngle;
-    animateToAngle(target);
+  // Stop scrolling and expand the centered certificate
+  const handleScrollSettled = useCallback(() => {
+    isScrollingRef.current = false;
+    setIsScrolling(false);
+
+    // Snap to the exact front card position
+    const nearestStep = Math.round(rotationRef.current / stepAngle);
+    const targetAngle = nearestStep * stepAngle;
+
+    animateToAngle(targetAngle, () => {
+      // Once aligned, broaden/expand the centered certificate
+      if (expandTimeoutRef.current) clearTimeout(expandTimeoutRef.current);
+      expandTimeoutRef.current = setTimeout(() => {
+        setIsExpanded(true);
+      }, 60);
+    });
   }, [stepAngle, animateToAngle]);
 
-  // Inertia coasting physics loop after drag release
-  const startInertiaCoasting = useCallback(
-    (initialVelocity: number) => {
-      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+  // Trigger scrolling state: immediately contract card and reset settle timer
+  const notifyScrollActivity = useCallback(() => {
+    if (!isScrollingRef.current) {
+      isScrollingRef.current = true;
+      setIsScrolling(true);
+      setIsExpanded(false); // Contract immediately when scrolling starts
+    }
 
-      let vel = initialVelocity;
+    if (stopTimeoutRef.current) clearTimeout(stopTimeoutRef.current);
+    if (expandTimeoutRef.current) clearTimeout(expandTimeoutRef.current);
 
-      const inertiaStep = () => {
-        rotationRef.current += vel;
-        updateDomRotation(rotationRef.current);
+    // When no scroll activity occurs for 180ms, settle and broaden
+    stopTimeoutRef.current = setTimeout(handleScrollSettled, 190);
+  }, [handleScrollSettled]);
 
-        // Friction deceleration
-        vel *= 0.92;
-
-        if (Math.abs(vel) < 0.08) {
-          // Coasting finished -> snap to nearest card
-          snapToNearest();
-          return;
-        }
-
-        rafIdRef.current = requestAnimationFrame(inertiaStep);
-      };
-
-      rafIdRef.current = requestAnimationFrame(inertiaStep);
-    },
-    [updateDomRotation, snapToNearest]
-  );
-
-  // Rotate smoothly to a specific card index (shortest angular distance)
+  // Navigate directly to a specific card index
   const rotateToIndex = useCallback(
     (targetIndex: number) => {
+      setIsExpanded(false);
+      isScrollingRef.current = true;
+      setIsScrolling(true);
+
       const current = rotationRef.current;
       const targetBase = -targetIndex * stepAngle;
       let relDiff = (targetBase - current) % 360;
       if (relDiff > 180) relDiff -= 360;
       if (relDiff < -180) relDiff += 360;
-      animateToAngle(current + relDiff);
+
+      animateToAngle(current + relDiff, () => {
+        handleScrollSettled();
+      });
     },
-    [stepAngle, animateToAngle]
+    [stepAngle, animateToAngle, handleScrollSettled]
   );
 
-  // Step Previous / Next
+  // Chevron step navigation
   const handlePrev = useCallback(() => {
+    setIsExpanded(false);
+    isScrollingRef.current = true;
+    setIsScrolling(true);
     const current = Math.round(rotationRef.current / stepAngle) * stepAngle;
-    animateToAngle(current + stepAngle);
-  }, [stepAngle, animateToAngle]);
+    animateToAngle(current + stepAngle, handleScrollSettled);
+  }, [stepAngle, animateToAngle, handleScrollSettled]);
 
   const handleNext = useCallback(() => {
+    setIsExpanded(false);
+    isScrollingRef.current = true;
+    setIsScrolling(true);
     const current = Math.round(rotationRef.current / stepAngle) * stepAngle;
-    animateToAngle(current - stepAngle);
-  }, [stepAngle, animateToAngle]);
+    animateToAngle(current - stepAngle, handleScrollSettled);
+  }, [stepAngle, animateToAngle, handleScrollSettled]);
 
-  // Pointer Drag Handlers (Mouse / Touch)
+  // Mouse Wheel on 3D Carousel Stage:
+  // Scrolling rotating the 3D loop continuously, then automatically broadening on stop
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage || !isDesktop || shouldReduceMotion) return;
+
+    const onWheel = (e: WheelEvent) => {
+      // Intercept wheel on the 3D stage to rotate loop
+      e.preventDefault();
+
+      notifyScrollActivity();
+
+      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+
+      // Sensitivity: horizontal trackpad or vertical mouse wheel
+      const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      const rotDelta = -delta * 0.22;
+
+      rotationRef.current += rotDelta;
+      updateDomRotation(rotationRef.current);
+    };
+
+    stage.addEventListener("wheel", onWheel, { passive: false });
+    return () => stage.removeEventListener("wheel", onWheel);
+  }, [isDesktop, shouldReduceMotion, notifyScrollActivity, updateDomRotation]);
+
+  // Pointer Drag Handlers (Mouse drag & Touch flick)
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDesktop || shouldReduceMotion) return;
-    if (e.button !== 0) return; // Only primary button
+    if (!isDesktop || shouldReduceMotion || e.button !== 0) return;
 
     if (rafIdRef.current) {
       cancelAnimationFrame(rafIdRef.current);
@@ -221,11 +246,8 @@ export function CertificateRing({
 
     setIsDragging(true);
     hasDraggedRef.current = false;
-
-    dragStartRef.current = {
-      x: e.clientX,
-      y: e.clientY,
-      startRot: rotationRef.current,
+    dragRef.current = {
+      startX: e.clientX,
       lastX: e.clientX,
       lastTime: performance.now(),
       velocity: 0,
@@ -239,26 +261,28 @@ export function CertificateRing({
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isDragging || !isDesktop || shouldReduceMotion) return;
 
-    const deltaX = e.clientX - dragStartRef.current.lastX;
-    const totalDistX = Math.abs(e.clientX - dragStartRef.current.x);
+    const deltaX = e.clientX - dragRef.current.lastX;
+    const totalDistX = Math.abs(e.clientX - dragRef.current.startX);
 
-    if (totalDistX > 5) {
-      hasDraggedRef.current = true;
+    if (totalDistX > 4) {
+      if (!hasDraggedRef.current) {
+        hasDraggedRef.current = true;
+        notifyScrollActivity();
+      }
     }
 
-    // Convert pixel delta to rotational degrees
     const rotDelta = deltaX * 0.32;
     rotationRef.current += rotDelta;
     updateDomRotation(rotationRef.current);
 
     const now = performance.now();
-    const dt = now - dragStartRef.current.lastTime;
+    const dt = now - dragRef.current.lastTime;
     if (dt > 0) {
-      dragStartRef.current.velocity = (rotDelta / dt) * 16.67;
+      dragRef.current.velocity = (rotDelta / dt) * 16.67;
     }
 
-    dragStartRef.current.lastX = e.clientX;
-    dragStartRef.current.lastTime = now;
+    dragRef.current.lastX = e.clientX;
+    dragRef.current.lastTime = now;
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -270,103 +294,44 @@ export function CertificateRing({
         stageRef.current.releasePointerCapture(e.pointerId);
       }
     } catch {
-      // Ignore if capture was already lost
+      // Ignored if capture lost
     }
 
     if (hasDraggedRef.current) {
-      const vel = dragStartRef.current.velocity;
-      if (Math.abs(vel) > 0.4) {
-        startInertiaCoasting(vel * 0.85);
+      const vel = dragRef.current.velocity;
+      if (Math.abs(vel) > 0.5) {
+        // Coasting with friction before snap
+        let currentVel = vel * 0.8;
+        const coastLoop = () => {
+          rotationRef.current += currentVel;
+          updateDomRotation(rotationRef.current);
+          currentVel *= 0.92;
+
+          if (Math.abs(currentVel) < 0.1) {
+            handleScrollSettled();
+            return;
+          }
+          rafIdRef.current = requestAnimationFrame(coastLoop);
+        };
+        rafIdRef.current = requestAnimationFrame(coastLoop);
       } else {
-        snapToNearest();
+        handleScrollSettled();
       }
     }
   };
 
-  // Wheel handling:
-  // - Trackpad horizontal scroll / Shift + wheel spins carousel with momentum
-  // - Vertical wheel spins carousel ONLY when active, otherwise page scrolls normally
-  useEffect(() => {
-    const el = stageRef.current;
-    if (!el || !isDesktop || shouldReduceMotion) return;
-
-    const handleWheel = (e: WheelEvent) => {
-      if (!isIntersecting) return;
-
-      const isHorizontalScroll = Math.abs(e.deltaX) > Math.abs(e.deltaY) || e.shiftKey;
-
-      if (isHorizontalScroll) {
-        const delta = e.shiftKey ? e.deltaY : e.deltaX;
-        if (Math.abs(delta) > 1.5) {
-          e.preventDefault();
-          if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
-
-          rotationRef.current -= delta * 0.28;
-          updateDomRotation(rotationRef.current);
-
-          if (wheelDebounceRef.current) clearTimeout(wheelDebounceRef.current);
-          wheelDebounceRef.current = setTimeout(snapToNearest, 130);
-        }
-        return;
-      }
-
-      // Vertical wheel: preventDefault and spin ONLY when active
-      if (isActive) {
-        e.preventDefault();
-        if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
-
-        rotationRef.current -= e.deltaY * 0.22;
-        updateDomRotation(rotationRef.current);
-
-        if (wheelDebounceRef.current) clearTimeout(wheelDebounceRef.current);
-        wheelDebounceRef.current = setTimeout(snapToNearest, 130);
-      }
-    };
-
-    el.addEventListener("wheel", handleWheel, { passive: false });
-    return () => {
-      el.removeEventListener("wheel", handleWheel);
-      if (wheelDebounceRef.current) clearTimeout(wheelDebounceRef.current);
-    };
-  }, [isDesktop, shouldReduceMotion, isIntersecting, isActive, snapToNearest, updateDomRotation]);
-
-  // Click outside to deactivate
-  useEffect(() => {
-    if (!isActive) return;
-
-    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setIsActive(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("touchstart", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("touchstart", handleClickOutside);
-    };
-  }, [isActive]);
-
-  // Keyboard navigation & activation
+  // Keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Escape") {
-      setIsActive(false);
-      return;
-    }
-
-    if (!isActive && (e.key === "Enter" || e.key === " ")) {
-      e.preventDefault();
-      setIsActive(true);
-      return;
-    }
-
     if (e.key === "ArrowLeft") {
       e.preventDefault();
       handlePrev();
     } else if (e.key === "ArrowRight") {
       e.preventDefault();
       handleNext();
+    } else if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      const triggerEl = cardTriggerRefs.current.get(activeCert.id);
+      onOpenModal(activeCert, triggerEl || null);
     }
   };
 
@@ -389,46 +354,41 @@ export function CertificateRing({
       ref={containerRef}
       tabIndex={0}
       role="region"
-      aria-label="Certificates 3D Showcase"
+      aria-label="Certificates 3D Loop Showcase"
       onKeyDown={handleKeyDown}
-      className="relative w-full focus-visible:outline-none"
+      className="relative w-full focus-visible:outline-none select-none"
     >
-      {/* Screen Reader Announcement for Centred Active Entry */}
+      {/* Screen Reader Live Announcement */}
       <div className="sr-only" aria-live="polite">
-        Active certificate: {activeCert.title}, issued by {activeCert.issuer}.
+        Current certificate: {activeCert.title}, issued by {activeCert.issuer}.
       </div>
 
-      {/* 3D CAROUSEL / MOBILE SWIPE STAGE */}
-      <div className="w-full py-4">
+      {/* 3D CAROUSEL PERSPECTIVE STAGE */}
+      <div className="w-full py-4 sm:py-6">
         {isDesktop && !shouldReduceMotion ? (
-          /* DESKTOP (>=768px) 3D PERSPECTIVE RING */
+          /* DESKTOP (>=768px) 3D PERSPECTIVE LOOP */
           <div
             ref={stageRef}
-            onClick={() => {
-              if (!isActive) setIsActive(true);
-            }}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
             onPointerCancel={handlePointerUp}
-            className={`relative w-full h-[500px] flex items-center justify-center select-none overflow-hidden rounded-3xl transition-all duration-300 ${
-              isActive
-                ? "ring-2 ring-[#2F6BFF]/40 shadow-[0_0_40px_rgba(47,107,255,0.18)] cursor-grab active:cursor-grabbing bg-[rgba(11,18,32,0.03)] dark:bg-[rgba(232,238,247,0.02)]"
-                : "cursor-pointer hover:ring-1 hover:ring-[rgba(47,107,255,0.25)]"
+            className={`relative w-full h-[540px] flex items-center justify-center overflow-hidden rounded-3xl transition-colors duration-300 ${
+              isDragging ? "cursor-grabbing" : "cursor-grab"
             }`}
           >
-            {/* 3D Perspective Stage */}
+            {/* 3D Perspective Viewport */}
             <div
               className="w-full h-full flex items-center justify-center"
               style={{
-                perspective: "1250px",
+                perspective: "1350px",
                 perspectiveOrigin: "50% 50%",
               }}
             >
-              {/* Rotating Cylinder Driven Directly on GPU */}
+              {/* Rotating 3D Cylinder Container */}
               <div
                 ref={ringRef}
-                className="relative w-[280px] sm:w-[300px] h-[370px] sm:h-[390px]"
+                className="relative w-[300px] h-[400px]"
                 style={{
                   transformStyle: "preserve-3d",
                   transform: `rotateY(${rotation}deg)`,
@@ -439,86 +399,177 @@ export function CertificateRing({
                   const baseAngle = i * stepAngle;
                   const isCentred = i === activeIndex;
 
-                  // Angular distance in steps to scale and fade side cards
+                  // Distance from center front in steps
                   let stepDiff = Math.abs(i - activeIndex);
                   if (stepDiff > N / 2) stepDiff = N - stepDiff;
 
                   const cardImg = getCardImage(cert);
                   const isMedalCard = cert.id === "invent-core";
 
-                  // Scale & Opacity based on distance from front
-                  const scale = isCentred ? 1.03 : stepDiff === 1 ? 0.94 : 0.85;
-                  const opacity = isCentred ? 1 : stepDiff === 1 ? 0.65 : 0.28;
+                  // When centered and stopped scrolling, card expands & widens!
+                  const isBroadened = isCentred && isExpanded && !isScrolling;
+
+                  // Scale & Opacity adjustments for depth
+                  const depthScale = isCentred
+                    ? isBroadened
+                      ? 1.04
+                      : 1.0
+                    : stepDiff === 1
+                    ? 0.92
+                    : 0.84;
+
+                  const depthOpacity = isCentred
+                    ? 1
+                    : stepDiff === 1
+                    ? 0.68
+                    : 0.28;
 
                   return (
                     <div
                       key={cert.id}
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (!hasDraggedRef.current) {
+                        if (hasDraggedRef.current) return;
+                        if (!isCentred) {
                           rotateToIndex(i);
+                        } else {
+                          // Centred card clicked: open full certificate modal
+                          const btnEl = cardTriggerRefs.current.get(cert.id);
+                          onOpenModal(cert, btnEl || null);
                         }
                       }}
-                      className={`absolute inset-0 rounded-2xl border p-5 flex flex-col justify-between transition-[opacity,transform,box-shadow,border-color,background-color] duration-250 ease-out ${
+                      className={`absolute top-0 rounded-2xl flex flex-col justify-between transition-[width,transform,opacity,box-shadow,border-color,background-color] duration-300 ease-out cursor-pointer ${
+                        isBroadened
+                          ? "w-[440px] sm:w-[500px] -left-[70px] sm:-left-[100px] p-6 z-30"
+                          : "w-[300px] left-0 p-5 z-10"
+                      } ${
+                        /* Subtle bridge border between UI obsidian-blue and certificate white */
                         isCentred
-                          ? "bg-[#111A2E] text-[#E8EEF7] border-[#2F6BFF] shadow-[0_12px_40px_rgba(47,107,255,0.3)] ring-2 ring-[#2F6BFF]/40 z-30"
-                          : "bg-[#0B1220]/95 text-[#CBD5E1] border-[rgba(232,238,247,0.14)] shadow-md hover:border-[#2F6BFF]/40 hover:opacity-80 z-10"
+                          ? "bg-white dark:bg-[#0f172a] text-[#0B1220] dark:text-[#E8EEF7] border-2 border-[#2F6BFF] ring-4 ring-[#457DFF]/25 shadow-[0_16px_50px_rgba(47,107,255,0.28)]"
+                          : "bg-white/95 dark:bg-[#111A2E]/95 text-[#334155] dark:text-[#CBD5E1] border border-[#CBD5E1] dark:border-[#334155]/80 hover:border-[#2F6BFF]/60 shadow-lg hover:shadow-xl"
                       }`}
                       style={{
-                        transform: `rotateY(${baseAngle}deg) translateZ(${radius}px) scale(${scale})`,
-                        opacity,
+                        height: "410px",
+                        transform: `rotateY(${baseAngle}deg) translateZ(${radius}px) scale(${depthScale})`,
+                        opacity: depthOpacity,
                         transformStyle: "preserve-3d",
                         backfaceVisibility: "hidden",
                       }}
                     >
-                      {/* Top Metadata */}
+                      {/* Top Header: Category Tag & Date & Status */}
                       <div className="flex items-center justify-between text-xs font-mono">
-                        <span className="px-2.5 py-0.5 rounded-full bg-[rgba(47,107,255,0.18)] text-[#457DFF] font-semibold text-[10px] uppercase tracking-wider">
+                        <span className="px-2.5 py-0.5 rounded-full bg-[rgba(47,107,255,0.12)] text-[#1F5AE6] dark:text-[#457DFF] font-semibold text-[10px] uppercase tracking-wider border border-[#2F6BFF]/20">
                           {cert.category}
                         </span>
-                        {cert.date && (
-                          <span className="text-[11px] text-[#94A3B8]">
-                            {cert.date}
-                          </span>
-                        )}
+
+                        <div className="flex items-center gap-2">
+                          {isBroadened && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-mono font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                              <Sparkles className="w-2.5 h-2.5" />
+                              Active
+                            </span>
+                          )}
+                          {cert.date && (
+                            <span className="text-[11px] text-slate-500 dark:text-[#94A3B8] font-mono">
+                              {cert.date}
+                            </span>
+                          )}
+                        </div>
                       </div>
 
-                      {/* Card Face: Medal Photo or Document Preview or Program Icon */}
+                      {/* Card Body: White Bezel Certificate Artwork */}
                       <div className="my-auto py-2">
                         {cardImg ? (
-                          <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden border border-[rgba(232,238,247,0.12)] bg-[#0B1220] shadow-inner">
+                          <div
+                            className={`relative w-full rounded-xl overflow-hidden bg-white dark:bg-slate-950 transition-all duration-300 shadow-inner ${
+                              /* Subtle border between UI and white certificate */
+                              "border border-[#E2E8F0] dark:border-slate-700/80"
+                            } ${isBroadened ? "aspect-[16/9]" : "aspect-[4/3]"}`}
+                          >
                             <Image
                               src={cardImg}
-                              alt={`${cert.title} face`}
+                              alt={`${cert.title} preview`}
                               fill
-                              sizes="300px"
+                              sizes="(max-width: 768px) 280px, 500px"
                               loading="lazy"
-                              className="object-cover"
+                              className="object-cover transition-transform duration-500 hover:scale-[1.02]"
                             />
                             {isMedalCard && (
-                              <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-amber-500/90 text-[#0B1220] font-mono text-[9px] font-bold uppercase tracking-wider shadow">
+                              <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-amber-500 text-[#0B1220] font-mono text-[9px] font-bold uppercase tracking-wider shadow">
                                 Medal Spec
+                              </div>
+                            )}
+                            {isBroadened && (
+                              <div className="absolute top-2 right-2 px-2 py-1 rounded-md bg-[#0B1220]/80 backdrop-blur-sm text-white text-[10px] font-mono inline-flex items-center gap-1 shadow">
+                                <Maximize2 className="w-3 h-3 text-[#457DFF]" />
+                                <span>Click to inspect</span>
                               </div>
                             )}
                           </div>
                         ) : (
-                          <div className="w-full aspect-[4/3] rounded-xl border border-dashed border-[rgba(232,238,247,0.2)] flex flex-col items-center justify-center p-4 bg-[#0B1220]/60 text-center">
-                            <Award className="w-10 h-10 text-[#457DFF] mb-2 opacity-85" />
-                            <span className="text-xs font-mono font-semibold uppercase tracking-wider text-[#457DFF]">
+                          <div
+                            className={`w-full rounded-xl border border-dashed border-[#CBD5E1] dark:border-slate-700 flex flex-col items-center justify-center p-4 bg-slate-50/80 dark:bg-slate-900/60 text-center transition-all duration-300 ${
+                              isBroadened ? "aspect-[16/9]" : "aspect-[4/3]"
+                            }`}
+                          >
+                            <Award className="w-10 h-10 text-[#2F6BFF] dark:text-[#457DFF] mb-2 opacity-90" />
+                            <span className="text-xs font-mono font-semibold uppercase tracking-wider text-[#1F5AE6] dark:text-[#457DFF]">
                               Program Involvement
                             </span>
                           </div>
                         )}
                       </div>
 
-                      {/* Bottom Title & Issuer */}
-                      <div>
-                        <h4 className="font-headline font-bold text-base sm:text-lg text-[#E8EEF7] line-clamp-1">
-                          {cert.title}
-                        </h4>
-                        <p className="text-xs font-mono text-[#94A3B8] truncate mt-0.5">
-                          {cert.issuer}
-                        </p>
+                      {/* Card Footer: Title, Issuer, and Broadened Details */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <h4
+                              className={`font-headline font-bold text-[#0B1220] dark:text-[#E8EEF7] tracking-tight transition-all duration-200 ${
+                                isBroadened ? "text-lg sm:text-xl line-clamp-1" : "text-base line-clamp-1"
+                              }`}
+                            >
+                              {cert.title}
+                            </h4>
+                            <p className="text-xs font-mono text-[#1F5AE6] dark:text-[#457DFF] font-semibold truncate">
+                              {cert.issuer}
+                            </p>
+                          </div>
+
+                          {/* Quick Modal Button when Widened */}
+                          {isBroadened && (
+                            <button
+                              ref={(el) => {
+                                cardTriggerRefs.current.set(cert.id, el);
+                              }}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const btnEl = cardTriggerRefs.current.get(cert.id);
+                                onOpenModal(cert, btnEl || null);
+                              }}
+                              aria-label={`Open full document for ${cert.title}`}
+                              className="flex-shrink-0 p-2 rounded-xl bg-[#2F6BFF] hover:bg-[#2558d4] text-white shadow transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6BFF]"
+                            >
+                              <ExternalLink className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Extended Description rendered when the card opens and widens */}
+                        <AnimatePresence>
+                          {isBroadened && cert.description && (
+                            <motion.p
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: "auto" }}
+                              exit={{ opacity: 0, height: 0 }}
+                              transition={{ duration: 0.2 }}
+                              className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 leading-relaxed pt-1 border-t border-slate-200 dark:border-slate-800"
+                            >
+                              {cert.description}
+                            </motion.p>
+                          )}
+                        </AnimatePresence>
                       </div>
                     </div>
                   );
@@ -526,7 +577,7 @@ export function CertificateRing({
               </div>
             </div>
 
-            {/* Left/Right Arrow Navigation Buttons */}
+            {/* Left and Right Chevron Navigation Buttons */}
             <button
               type="button"
               onClick={(e) => {
@@ -534,7 +585,7 @@ export function CertificateRing({
                 handlePrev();
               }}
               aria-label="Previous certificate"
-              className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-[#111A2E]/90 hover:bg-[#111A2E] border border-[rgba(232,238,247,0.2)] text-[#E8EEF7] hover:border-[#2F6BFF] hover:text-[#457DFF] shadow-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6BFF] z-40"
+              className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 p-3 sm:p-3.5 rounded-full bg-white/90 dark:bg-[#111A2E]/90 hover:bg-white dark:hover:bg-[#111A2E] border border-slate-300 dark:border-slate-700/80 text-[#0B1220] dark:text-[#E8EEF7] hover:border-[#2F6BFF] hover:text-[#2F6BFF] dark:hover:text-[#457DFF] shadow-xl transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6BFF] z-40"
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
@@ -546,7 +597,7 @@ export function CertificateRing({
                 handleNext();
               }}
               aria-label="Next certificate"
-              className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-[#111A2E]/90 hover:bg-[#111A2E] border border-[rgba(232,238,247,0.2)] text-[#E8EEF7] hover:border-[#2F6BFF] hover:text-[#457DFF] shadow-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6BFF] z-40"
+              className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 p-3 sm:p-3.5 rounded-full bg-white/90 dark:bg-[#111A2E]/90 hover:bg-white dark:hover:bg-[#111A2E] border border-slate-300 dark:border-slate-700/80 text-[#0B1220] dark:text-[#E8EEF7] hover:border-[#2F6BFF] hover:text-[#2F6BFF] dark:hover:text-[#457DFF] shadow-xl transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6BFF] z-40"
             >
               <ChevronRight className="w-5 h-5" />
             </button>
@@ -556,7 +607,7 @@ export function CertificateRing({
           <div
             ref={swipeRowRef}
             onScroll={handleMobileScroll}
-            className="flex gap-4 sm:gap-6 overflow-x-auto snap-x snap-mandatory py-6 px-4 no-scrollbar scroll-smooth"
+            className="flex gap-4 sm:gap-6 overflow-x-auto snap-x snap-mandatory py-4 px-4 no-scrollbar scroll-smooth"
             role="region"
             aria-label="Certificates swipe gallery"
           >
@@ -567,11 +618,15 @@ export function CertificateRing({
               return (
                 <div
                   key={cert.id}
-                  onClick={() => setMobileActiveIndex(idx)}
-                  className={`snap-center flex-shrink-0 w-[260px] sm:w-[290px] rounded-2xl bg-white dark:bg-[#111A2E] border p-5 flex flex-col justify-between transition-all shadow-sm ${
+                  onClick={() => {
+                    setMobileActiveIndex(idx);
+                    const btnEl = cardTriggerRefs.current.get(cert.id);
+                    onOpenModal(cert, btnEl || null);
+                  }}
+                  className={`snap-center flex-shrink-0 w-[270px] sm:w-[300px] rounded-2xl bg-white dark:bg-[#111A2E] border p-5 flex flex-col justify-between transition-all shadow-md ${
                     isSelected
-                      ? "border-[#2F6BFF] ring-2 ring-[#2F6BFF]/30 dark:border-[#457DFF]"
-                      : "border-[rgba(11,18,32,0.12)] dark:border-[rgba(232,238,247,0.12)] opacity-85"
+                      ? "border-2 border-[#2F6BFF] ring-2 ring-[#2F6BFF]/30 dark:border-[#457DFF]"
+                      : "border-slate-300 dark:border-slate-700/80 opacity-90"
                   }`}
                 >
                   <div className="flex items-center justify-between text-xs font-mono mb-3">
@@ -579,7 +634,7 @@ export function CertificateRing({
                       {cert.category}
                     </span>
                     {cert.date && (
-                      <span className="text-[11px] text-[rgba(11,18,32,0.6)] dark:text-[#94A3B8]">
+                      <span className="text-[11px] text-slate-500 dark:text-[#94A3B8]">
                         {cert.date}
                       </span>
                     )}
@@ -587,18 +642,18 @@ export function CertificateRing({
 
                   <div className="my-auto py-2">
                     {cardImg ? (
-                      <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden border border-[rgba(11,18,32,0.08)] dark:border-[rgba(232,238,247,0.08)] bg-slate-100 dark:bg-slate-900">
+                      <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
                         <Image
                           src={cardImg}
                           alt={`${cert.title} preview`}
                           fill
-                          sizes="260px"
+                          sizes="270px"
                           loading="lazy"
                           className="object-cover"
                         />
                       </div>
                     ) : (
-                      <div className="w-full aspect-[4/3] rounded-xl border border-dashed border-[rgba(11,18,32,0.15)] dark:border-[rgba(232,238,247,0.15)] flex flex-col items-center justify-center p-4 bg-slate-50 dark:bg-slate-900/50 text-center">
+                      <div className="w-full aspect-[4/3] rounded-xl border border-dashed border-slate-300 dark:border-slate-700 flex flex-col items-center justify-center p-4 bg-slate-50 dark:bg-slate-900/50 text-center">
                         <Award className="w-8 h-8 text-[#1F5AE6] dark:text-[#457DFF] mb-2 opacity-80" />
                         <span className="text-xs font-mono font-semibold uppercase text-[#1F5AE6] dark:text-[#457DFF]">
                           Program
@@ -611,7 +666,7 @@ export function CertificateRing({
                     <h4 className="font-headline font-bold text-base text-[#0B1220] dark:text-[#E8EEF7] line-clamp-1">
                       {cert.title}
                     </h4>
-                    <p className="text-xs font-mono text-[rgba(11,18,32,0.65)] dark:text-[#94A3B8] truncate mt-0.5">
+                    <p className="text-xs font-mono text-slate-600 dark:text-[#94A3B8] truncate mt-0.5">
                       {cert.issuer}
                     </p>
                   </div>
@@ -621,43 +676,24 @@ export function CertificateRing({
           </div>
         )}
 
-        {/* ACTIVATION HINT DIRECTLY BELOW THE RING */}
-        <div className="mt-4 mb-6 flex flex-col sm:flex-row items-center justify-between gap-3 px-4 max-w-3xl mx-auto w-full font-mono text-xs text-[rgba(11,18,32,0.65)] dark:text-[#94A3B8]">
-          <div className="inline-flex items-center gap-2" aria-live="polite">
+        {/* INTERACTION HINT & DYNAMIC STEP TRACKER */}
+        <div className="mt-4 mb-6 flex flex-col sm:flex-row items-center justify-between gap-3 px-4 max-w-3xl mx-auto w-full font-mono text-xs text-slate-600 dark:text-[#94A3B8]">
+          <div className="inline-flex items-center gap-2">
             <MousePointer2 className="w-3.5 h-3.5 text-[#2F6BFF] dark:text-[#457DFF]" aria-hidden="true" />
-            {!isDesktop || shouldReduceMotion ? (
-              <span>Swipe to browse certificates</span>
+            {isDesktop && !shouldReduceMotion ? (
+              <span>
+                {isScrolling
+                  ? "Scrolling loop... Release to broaden certificate"
+                  : "Scroll mouse wheel or drag to spin loop • Stops to broaden"}
+              </span>
             ) : (
-              <AnimatePresence mode="wait">
-                {isActive ? (
-                  <motion.span
-                    key="active-hint"
-                    initial={shouldReduceMotion ? {} : { opacity: 0, y: 3 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={shouldReduceMotion ? {} : { opacity: 0, y: -3 }}
-                    transition={{ duration: 0.18 }}
-                    className="text-[#2F6BFF] dark:text-[#457DFF] font-semibold"
-                  >
-                    Carousel active. Scroll or drag to spin. Press Esc or click outside to release.
-                  </motion.span>
-                ) : (
-                  <motion.span
-                    key="inactive-hint"
-                    initial={shouldReduceMotion ? {} : { opacity: 0, y: 3 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={shouldReduceMotion ? {} : { opacity: 0, y: -3 }}
-                    transition={{ duration: 0.18 }}
-                  >
-                    Click to activate the certificate carousel • Drag to spin
-                  </motion.span>
-                )}
-              </AnimatePresence>
+              <span>Swipe to browse certificates • Tap to inspect</span>
             )}
           </div>
 
           {/* Active Step Indicator */}
           <div className="flex items-center gap-2">
-            <span className="text-[#2F6BFF] dark:text-[#457DFF] font-semibold">
+            <span className="text-[#2F6BFF] dark:text-[#457DFF] font-bold">
               0{currentActiveIndex + 1}
             </span>
             <span>/</span>
@@ -665,7 +701,7 @@ export function CertificateRing({
           </div>
         </div>
 
-        {/* DESCRIPTION PANEL BELOW THE RING */}
+        {/* BOTTOM METADATA / ACTION BAR */}
         <div className="max-w-3xl mx-auto px-4 sm:px-6 w-full">
           <AnimatePresence mode="wait">
             <motion.div
@@ -674,22 +710,20 @@ export function CertificateRing({
               animate={{ opacity: 1, y: 0 }}
               exit={shouldReduceMotion ? {} : { opacity: 0, y: -8 }}
               transition={{ duration: shouldReduceMotion ? 0 : 0.22, ease: [0.16, 1, 0.3, 1] }}
-              className="p-6 sm:p-7 rounded-2xl bg-white dark:bg-[#111A2E] border border-[rgba(11,18,32,0.12)] dark:border-[rgba(232,238,247,0.12)] shadow-md space-y-3"
+              className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-[#111A2E] border border-slate-300 dark:border-slate-700/80 shadow-md space-y-3"
             >
-              {/* Meta Tags */}
               <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-xs">
                 <span className="px-2.5 py-0.5 rounded-full bg-[rgba(47,107,255,0.1)] text-[#1F5AE6] dark:text-[#457DFF] font-semibold uppercase tracking-wider">
                   {activeCert.category}
                 </span>
                 {activeCert.date && (
-                  <span className="text-[rgba(11,18,32,0.6)] dark:text-[#94A3B8] flex items-center gap-1.5">
+                  <span className="text-slate-500 dark:text-[#94A3B8] flex items-center gap-1.5">
                     <Calendar className="w-3.5 h-3.5" />
                     <span>{activeCert.date}</span>
                   </span>
                 )}
               </div>
 
-              {/* Title & Issuer */}
               <div>
                 <h3 className="font-headline font-black text-xl sm:text-2xl text-[#0B1220] dark:text-[#E8EEF7] tracking-tight">
                   {activeCert.title}
@@ -699,22 +733,22 @@ export function CertificateRing({
                 </p>
               </div>
 
-              {/* Description (rendered only if present) */}
               {activeCert.description && (
-                <p className="text-xs sm:text-sm text-[rgba(11,18,32,0.8)] dark:text-[#CBD5E1] leading-relaxed">
+                <p className="text-xs sm:text-sm text-slate-700 dark:text-[#CBD5E1] leading-relaxed">
                   {activeCert.description}
                 </p>
               )}
 
-              {/* CTA: Open Full Certificate Button */}
-              <div className="pt-3 border-t border-[rgba(11,18,32,0.08)] dark:border-[rgba(232,238,247,0.08)] flex items-center justify-between">
-                <span className="text-xs font-mono text-[rgba(11,18,32,0.5)] dark:text-[#64748B]">
-                  Document record active
+              <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <span className="text-xs font-mono text-slate-500 dark:text-[#64748B]">
+                  {isExpanded ? "Broad view active" : "Aligning document..."}
                 </span>
                 <button
-                  ref={openBtnRef}
                   type="button"
-                  onClick={() => onOpenModal(activeCert, openBtnRef.current)}
+                  onClick={() => {
+                    const btnEl = cardTriggerRefs.current.get(activeCert.id);
+                    onOpenModal(activeCert, btnEl || null);
+                  }}
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#2F6BFF] hover:bg-[#2558d4] text-white font-mono text-xs font-semibold shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6BFF]"
                 >
                   <span>Open full certificate</span>
