@@ -39,6 +39,9 @@ export function CertificateRing({
   const targetStepRef = useRef(0);
   const activeIndexRef = useRef(0);
   const rafIdRef = useRef<number | null>(null);
+  const animStartTimeRef = useRef(0);
+  const animStartAngleRef = useRef(0);
+  const animDurationRef = useRef(680);
   const expandTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const wheelAccumulatorRef = useRef(0);
   const wheelDebounceRef = useRef<NodeJS.Timeout | null>(null);
@@ -86,10 +89,10 @@ export function CertificateRing({
     [N, stepAngle]
   );
 
-  // Critically Damped Spring Animation:
-  // High smoothness and physical deceleration into target
-  const startSpringAnimation = useCallback(
-    (onSettle?: () => void) => {
+  // SWEET-SPOT CINEMATIC TRANSITION (680ms calibrated glide):
+  // Gives the eye time to see the 3D rotation, feel the weight, and enjoy the bloom
+  const startCinematicAnimation = useCallback(
+    (customDuration?: number) => {
       if (rafIdRef.current) {
         cancelAnimationFrame(rafIdRef.current);
         rafIdRef.current = null;
@@ -101,40 +104,52 @@ export function CertificateRing({
         setRotation(targetAngleRef.current);
         setIsScrolling(false);
         setIsExpanded(true);
-        onSettle?.();
         return;
       }
 
-      const springLoop = () => {
-        const current = rotationRef.current;
-        const target = targetAngleRef.current;
-        const diff = target - current;
+      animStartAngleRef.current = rotationRef.current;
+      animStartTimeRef.current = performance.now();
 
-        if (Math.abs(diff) < 0.04) {
-          rotationRef.current = target;
-          updateDomRotation(target);
-          setRotation(target);
+      // Calibrated sweet spot duration: ~680ms for 1 step, dynamically scaled for multi-step
+      const angleDist = Math.abs(targetAngleRef.current - animStartAngleRef.current);
+      const stepDist = Math.max(1, angleDist / stepAngle);
+      animDurationRef.current = customDuration || Math.min(1000, Math.max(680, 680 + (stepDist - 1) * 180));
+
+      const animateLoop = (now: number) => {
+        const elapsed = now - animStartTimeRef.current;
+        const progress = Math.min(1, elapsed / animDurationRef.current);
+
+        // Apple-style cinematic cubic-bezier(0.16, 1, 0.3, 1) curve
+        const eased = 1 - Math.pow(1 - progress, 3.2);
+
+        const current =
+          animStartAngleRef.current +
+          (targetAngleRef.current - animStartAngleRef.current) * eased;
+
+        rotationRef.current = current;
+        updateDomRotation(current);
+
+        if (progress < 1) {
+          rafIdRef.current = requestAnimationFrame(animateLoop);
+        } else {
+          // Settled on target
+          rotationRef.current = targetAngleRef.current;
+          updateDomRotation(targetAngleRef.current);
+          setRotation(targetAngleRef.current);
           rafIdRef.current = null;
           setIsScrolling(false);
 
+          // Sweet-spot settle pause (110ms) before gracefully expanding into broad view
           if (expandTimeoutRef.current) clearTimeout(expandTimeoutRef.current);
           expandTimeoutRef.current = setTimeout(() => {
             setIsExpanded(true);
-            onSettle?.();
-          }, 60);
-          return;
+          }, 110);
         }
-
-        // Luxurious, butter-smooth spring easing factor
-        const next = current + diff * 0.11;
-        rotationRef.current = next;
-        updateDomRotation(next);
-        rafIdRef.current = requestAnimationFrame(springLoop);
       };
 
-      rafIdRef.current = requestAnimationFrame(springLoop);
+      rafIdRef.current = requestAnimationFrame(animateLoop);
     },
-    [shouldReduceMotion, updateDomRotation]
+    [shouldReduceMotion, stepAngle, updateDomRotation]
   );
 
   // Step certificate by integer increments (e.g. +1 or -1)
@@ -146,9 +161,9 @@ export function CertificateRing({
       targetStepRef.current += stepDelta;
       targetAngleRef.current = targetStepRef.current * stepAngle;
 
-      startSpringAnimation();
+      startCinematicAnimation();
     },
-    [stepAngle, startSpringAnimation]
+    [stepAngle, startCinematicAnimation]
   );
 
   // Rotate directly to a specific card index
@@ -167,9 +182,9 @@ export function CertificateRing({
       targetAngleRef.current = newTarget;
       targetStepRef.current = Math.round(newTarget / stepAngle);
 
-      startSpringAnimation();
+      startCinematicAnimation();
     },
-    [stepAngle, startSpringAnimation]
+    [stepAngle, startCinematicAnimation]
   );
 
   // Navigation Chevrons
@@ -182,7 +197,7 @@ export function CertificateRing({
   }, [stepCertificate]);
 
   // 1-BIT MOUSE WHEEL ROTATION:
-  // Turning the wheel 1 single bit (notch) switches by exactly 1 certificate!
+  // Turning the wheel 1 single bit (notch) switches by exactly 1 certificate at the sweet-spot pace!
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
@@ -287,7 +302,7 @@ export function CertificateRing({
 
       targetStepRef.current = nearestStep;
       targetAngleRef.current = nearestStep * stepAngle;
-      startSpringAnimation();
+      startCinematicAnimation(620);
     }
   };
 
@@ -393,7 +408,7 @@ export function CertificateRing({
                         onOpenModal(cert, btnEl || null);
                       }
                     }}
-                    className={`absolute top-0 rounded-2xl flex flex-col justify-between transition-[width,left,transform,opacity,box-shadow,border-color,background-color] duration-300 ease-out cursor-pointer ${
+                    className={`absolute top-0 rounded-2xl flex flex-col justify-between transition-[width,left,transform,opacity,box-shadow,border-color,background-color] duration-500 sm:duration-600 ease-[cubic-bezier(0.16,1,0.3,1)] cursor-pointer ${
                       isBroadened
                         ? "w-[350px] xs:w-[420px] sm:w-[500px] md:w-[540px] -left-[35px] xs:-left-[60px] sm:-left-[100px] md:-left-[120px] p-6 sm:p-7 z-30"
                         : "w-[280px] sm:w-[300px] left-0 p-5 z-10"
@@ -436,7 +451,7 @@ export function CertificateRing({
                     <div className="my-auto py-2">
                       {cardImg ? (
                         <div
-                          className={`relative w-full rounded-xl overflow-hidden bg-white dark:bg-slate-950 transition-all duration-300 shadow-inner ${
+                          className={`relative w-full rounded-xl overflow-hidden bg-white dark:bg-slate-950 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] shadow-inner ${
                             /* Subtle border between UI and white certificate */
                             "border border-[#E2E8F0] dark:border-slate-700/80"
                           } ${isBroadened ? "aspect-[16/9]" : "aspect-[4/3]"}`}
@@ -463,7 +478,7 @@ export function CertificateRing({
                         </div>
                       ) : (
                         <div
-                          className={`w-full rounded-xl border border-dashed border-[#CBD5E1] dark:border-slate-700 flex flex-col items-center justify-center p-4 bg-slate-50/80 dark:bg-slate-900/60 text-center transition-all duration-300 ${
+                          className={`w-full rounded-xl border border-dashed border-[#CBD5E1] dark:border-slate-700 flex flex-col items-center justify-center p-4 bg-slate-50/80 dark:bg-slate-900/60 text-center transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
                             isBroadened ? "aspect-[16/9]" : "aspect-[4/3]"
                           }`}
                         >
@@ -518,7 +533,7 @@ export function CertificateRing({
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: "auto" }}
                             exit={{ opacity: 0, height: 0 }}
-                            transition={{ duration: 0.2 }}
+                            transition={{ duration: 0.25 }}
                             className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 leading-relaxed pt-1 border-t border-slate-200 dark:border-slate-800"
                           >
                             {cert.description}
@@ -564,7 +579,7 @@ export function CertificateRing({
             <MousePointer2 className="w-3.5 h-3.5 text-[#2F6BFF] dark:text-[#457DFF]" aria-hidden="true" />
             <span>
               {isScrolling
-                ? "Switching certificate... Pause to broaden"
+                ? "Switching certificate... Gliding to position"
                 : "1 mouse notch switches certificate • Stops to broaden"}
             </span>
           </div>
@@ -587,7 +602,7 @@ export function CertificateRing({
               initial={shouldReduceMotion ? {} : { opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={shouldReduceMotion ? {} : { opacity: 0, y: -8 }}
-              transition={{ duration: shouldReduceMotion ? 0 : 0.22, ease: [0.16, 1, 0.3, 1] }}
+              transition={{ duration: shouldReduceMotion ? 0 : 0.35, ease: [0.16, 1, 0.3, 1] }}
               className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-[#111A2E] border border-slate-300 dark:border-slate-700/80 shadow-md space-y-3"
             >
               <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-xs">
