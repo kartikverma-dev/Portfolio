@@ -53,9 +53,9 @@ export const projects: Project[] = [
       },
       {
         type: "github",
-        url: "https://github.com/kartikverma-dev/IDGUARDsvg",
-        label: "GitHub Repository (Unconfirmed)",
-        verified: false, // Unconfirmed spelling per MASTER_PROMPT.md; hidden from public UI
+        url: "https://github.com/kartikverma-dev/IDGUARD",
+        label: "GitHub Repository",
+        verified: true,
       },
       {
         type: "profile",
