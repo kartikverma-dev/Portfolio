@@ -29,8 +29,8 @@ Built with an editorial design language inspired by scientific notebooks and tec
 
 ```bash
 # Clone repository
-git clone https://github.com/kartikverma-dev/portfolio.git
-cd portfolio
+git clone https://github.com/kartikverma-dev/Portfolio.git
+cd Portfolio
 
 # Install dependencies
 npm install
