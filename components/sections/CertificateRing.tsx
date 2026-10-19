@@ -41,10 +41,12 @@ export function CertificateRing({
   const rafIdRef = useRef<number | null>(null);
   const animStartTimeRef = useRef(0);
   const animStartAngleRef = useRef(0);
-  const animDurationRef = useRef(680);
+  const animDurationRef = useRef(850);
   const expandTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const wheelAccumulatorRef = useRef(0);
-  const wheelDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Wheel cooldown lock: ensures 1 notch triggers exactly 1 smooth card step without runaway speed
+  const lastWheelTimeRef = useRef(0);
+  const isTransitioningRef = useRef(false);
 
   // Drag tracking
   const hasDraggedRef = useRef(false);
@@ -89,8 +91,8 @@ export function CertificateRing({
     [N, stepAngle]
   );
 
-  // SWEET-SPOT CINEMATIC TRANSITION (680ms calibrated glide):
-  // Gives the eye time to see the 3D rotation, feel the weight, and enjoy the bloom
+  // CALIBRATED MAJESTIC S-CURVE TRANSITION (850ms duration):
+  // Steady, clearly observable pace with zero jumpiness
   const startCinematicAnimation = useCallback(
     (customDuration?: number) => {
       if (rafIdRef.current) {
@@ -104,23 +106,24 @@ export function CertificateRing({
         setRotation(targetAngleRef.current);
         setIsScrolling(false);
         setIsExpanded(true);
+        isTransitioningRef.current = false;
         return;
       }
 
+      isTransitioningRef.current = true;
       animStartAngleRef.current = rotationRef.current;
       animStartTimeRef.current = performance.now();
-
-      // Calibrated sweet spot duration: ~680ms for 1 step, dynamically scaled for multi-step
-      const angleDist = Math.abs(targetAngleRef.current - animStartAngleRef.current);
-      const stepDist = Math.max(1, angleDist / stepAngle);
-      animDurationRef.current = customDuration || Math.min(1000, Math.max(680, 680 + (stepDist - 1) * 180));
+      animDurationRef.current = customDuration || 850;
 
       const animateLoop = (now: number) => {
         const elapsed = now - animStartTimeRef.current;
         const progress = Math.min(1, elapsed / animDurationRef.current);
 
-        // Apple-style cinematic cubic-bezier(0.16, 1, 0.3, 1) curve
-        const eased = 1 - Math.pow(1 - progress, 3.2);
+        // Smooth easeInOutCubic: gentle start, steady visible glide, graceful deceleration
+        const eased =
+          progress < 0.5
+            ? 4 * progress * progress * progress
+            : 1 - Math.pow(-2 * progress + 2, 3) / 2;
 
         const current =
           animStartAngleRef.current +
@@ -138,18 +141,19 @@ export function CertificateRing({
           setRotation(targetAngleRef.current);
           rafIdRef.current = null;
           setIsScrolling(false);
+          isTransitioningRef.current = false;
 
-          // Sweet-spot settle pause (110ms) before gracefully expanding into broad view
+          // Sweet-spot settle pause (140ms) before gracefully expanding into broad view
           if (expandTimeoutRef.current) clearTimeout(expandTimeoutRef.current);
           expandTimeoutRef.current = setTimeout(() => {
             setIsExpanded(true);
-          }, 110);
+          }, 140);
         }
       };
 
       rafIdRef.current = requestAnimationFrame(animateLoop);
     },
-    [shouldReduceMotion, stepAngle, updateDomRotation]
+    [shouldReduceMotion, updateDomRotation]
   );
 
   // Step certificate by integer increments (e.g. +1 or -1)
@@ -161,7 +165,7 @@ export function CertificateRing({
       targetStepRef.current += stepDelta;
       targetAngleRef.current = targetStepRef.current * stepAngle;
 
-      startCinematicAnimation();
+      startCinematicAnimation(850);
     },
     [stepAngle, startCinematicAnimation]
   );
@@ -182,7 +186,7 @@ export function CertificateRing({
       targetAngleRef.current = newTarget;
       targetStepRef.current = Math.round(newTarget / stepAngle);
 
-      startCinematicAnimation();
+      startCinematicAnimation(850);
     },
     [stepAngle, startCinematicAnimation]
   );
@@ -196,8 +200,8 @@ export function CertificateRing({
     stepCertificate(-1);
   }, [stepCertificate]);
 
-  // 1-BIT MOUSE WHEEL ROTATION:
-  // Turning the wheel 1 single bit (notch) switches by exactly 1 certificate at the sweet-spot pace!
+  // CALIBRATED MOUSE WHEEL ROTATION:
+  // Strictly locks to 1 card step per wheel notch with cooldown to prevent runaway speed
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
@@ -205,25 +209,23 @@ export function CertificateRing({
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
 
+      const now = performance.now();
+      // Cooldown of 480ms: prevents multiple wheel ticks from a single flick from skipping multiple cards
+      if (now - lastWheelTimeRef.current < 480) {
+        return;
+      }
+
       const rawDelta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-      wheelAccumulatorRef.current += rawDelta;
 
-      if (wheelDebounceRef.current) clearTimeout(wheelDebounceRef.current);
-      wheelDebounceRef.current = setTimeout(() => {
-        wheelAccumulatorRef.current = 0;
-      }, 160);
+      // Minimum delta threshold to ignore micro-jitters
+      if (Math.abs(rawDelta) < 15) return;
 
-      // Threshold tuned so 1 single notch of a standard wheel switches exactly 1 card
-      const NOTCH_THRESHOLD = 50;
+      lastWheelTimeRef.current = now;
 
-      if (wheelAccumulatorRef.current >= NOTCH_THRESHOLD) {
-        const steps = Math.floor(wheelAccumulatorRef.current / NOTCH_THRESHOLD);
-        wheelAccumulatorRef.current = wheelAccumulatorRef.current % NOTCH_THRESHOLD;
-        stepCertificate(-steps); // Downward scroll moves forward
-      } else if (wheelAccumulatorRef.current <= -NOTCH_THRESHOLD) {
-        const steps = Math.floor(Math.abs(wheelAccumulatorRef.current) / NOTCH_THRESHOLD);
-        wheelAccumulatorRef.current = -(Math.abs(wheelAccumulatorRef.current) % NOTCH_THRESHOLD);
-        stepCertificate(steps); // Upward scroll moves backward
+      if (rawDelta > 0) {
+        stepCertificate(-1); // Downward scroll moves to next certificate
+      } else {
+        stepCertificate(1);  // Upward scroll moves to previous certificate
       }
     };
 
@@ -268,7 +270,7 @@ export function CertificateRing({
       }
     }
 
-    const rotDelta = deltaX * 0.28;
+    const rotDelta = deltaX * 0.24;
     rotationRef.current += rotDelta;
     updateDomRotation(rotationRef.current);
 
@@ -297,12 +299,12 @@ export function CertificateRing({
     if (hasDraggedRef.current) {
       const vel = dragRef.current.velocity;
       // Calculate nearest target step from current position plus momentum flick
-      const currentAngle = rotationRef.current + vel * 2.2;
+      const currentAngle = rotationRef.current + vel * 1.8;
       const nearestStep = Math.round(currentAngle / stepAngle);
 
       targetStepRef.current = nearestStep;
       targetAngleRef.current = nearestStep * stepAngle;
-      startCinematicAnimation(620);
+      startCinematicAnimation(800);
     }
   };
 
@@ -573,13 +575,13 @@ export function CertificateRing({
           </button>
         </div>
 
-        {/* 1-BIT MOUSE SCROLLING HINT & STEP TRACKER */}
+        {/* CALIBRATED SCROLLING HINT & STEP TRACKER */}
         <div className="mt-4 mb-6 flex flex-col sm:flex-row items-center justify-between gap-3 px-4 max-w-3xl mx-auto w-full font-mono text-xs text-slate-600 dark:text-[#94A3B8]">
           <div className="inline-flex items-center gap-2">
             <MousePointer2 className="w-3.5 h-3.5 text-[#2F6BFF] dark:text-[#457DFF]" aria-hidden="true" />
             <span>
               {isScrolling
-                ? "Switching certificate... Gliding to position"
+                ? "Gliding to certificate..."
                 : "1 mouse notch switches certificate • Stops to broaden"}
             </span>
           </div>
