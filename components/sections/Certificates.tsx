@@ -5,6 +5,7 @@ import Image from "next/image";
 import { certificates, CertificateItem } from "@/data/certificates";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { Award, X, ExternalLink, Calendar, ShieldCheck, Medal } from "lucide-react";
+import { CertificateRing } from "./CertificateRing";
 
 type CertificateCategory =
   | "All"
@@ -26,6 +27,7 @@ const categories: CertificateCategory[] = [
 ];
 
 export function Certificates() {
+  const [viewMode, setViewMode] = useState<"ring" | "list">("ring");
   const [activeCategory, setActiveCategory] = useState<CertificateCategory>("All");
   const [selectedCert, setSelectedCert] = useState<CertificateItem | null>(null);
   const triggerRefs = useRef<Map<string, HTMLElement>>(new Map());
@@ -127,169 +129,221 @@ export function Certificates() {
             </p>
           </div>
 
-          {/* Category Filter Chips */}
-          <div className="flex flex-wrap items-center gap-1.5 font-mono text-xs">
-            {categories.map((cat) => {
-              const isSelected = activeCategory === cat;
-              return (
-                <button
-                  key={cat}
-                  onClick={() => setActiveCategory(cat)}
-                  type="button"
-                  className={`px-3 py-1.5 rounded-full border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6BFF] ${
-                    isSelected
-                      ? "bg-[#2F6BFF] border-[#2F6BFF] text-white font-semibold shadow-sm"
-                      : "bg-white dark:bg-[#111A2E] border-[rgba(11,18,32,0.12)] dark:border-[rgba(232,238,247,0.12)] text-[rgba(11,18,32,0.7)] dark:text-[#94A3B8] hover:text-[#0B1220] dark:hover:text-[#E8EEF7] hover:border-[#2F6BFF]/40"
-                  }`}
-                >
-                  {cat}
-                </button>
-              );
-            })}
+          {/* View Mode Toggle: 3D Ring vs List Grid */}
+          <div
+            role="tablist"
+            aria-label="Certificates presentation view"
+            className="inline-flex p-1 rounded-xl bg-white dark:bg-[#111A2E] border border-[rgba(11,18,32,0.12)] dark:border-[rgba(232,238,247,0.12)] font-mono text-xs shadow-sm self-start md:self-end"
+          >
+            <button
+              type="button"
+              role="tab"
+              id="tab-ring"
+              aria-selected={viewMode === "ring"}
+              aria-controls="panel-ring"
+              onClick={() => setViewMode("ring")}
+              className={`px-3.5 py-1.5 rounded-lg font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6BFF] ${
+                viewMode === "ring"
+                  ? "bg-[#2F6BFF] text-white shadow-sm"
+                  : "text-[rgba(11,18,32,0.7)] dark:text-[#94A3B8] hover:text-[#0B1220] dark:hover:text-[#E8EEF7]"
+              }`}
+            >
+              3D Ring
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id="tab-list"
+              aria-selected={viewMode === "list"}
+              aria-controls="panel-list"
+              onClick={() => setViewMode("list")}
+              className={`px-3.5 py-1.5 rounded-lg font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6BFF] ${
+                viewMode === "list"
+                  ? "bg-[#2F6BFF] text-white shadow-sm"
+                  : "text-[rgba(11,18,32,0.7)] dark:text-[#94A3B8] hover:text-[#0B1220] dark:hover:text-[#E8EEF7]"
+              }`}
+            >
+              List Grid
+            </button>
           </div>
         </div>
 
-        {/* FEATURED: Core Committee Honours Card */}
-        {featuredCert && (activeCategory === "All" || activeCategory === "Honours") && (
-          <div className="mb-14">
-            <div className="text-xs font-mono uppercase tracking-widest text-[#1F5AE6] dark:text-[#457DFF] font-semibold mb-3 flex items-center gap-2">
-              <Medal className="w-4 h-4 text-amber-500" />
-              <span>Featured Honours</span>
+        {/* VIEW 1: 3D Ring Carousel (Desktop) / Swipe Row (Mobile) */}
+        {viewMode === "ring" ? (
+          <div id="panel-ring" role="tabpanel" aria-labelledby="tab-ring">
+            <CertificateRing
+              certificates={verifiedCertificates}
+              onOpenModal={openModal}
+              shouldReduceMotion={shouldReduceMotion}
+            />
+          </div>
+        ) : (
+          /* VIEW 2: List Grid View */
+          <div id="panel-list" role="tabpanel" aria-labelledby="tab-list">
+            {/* Category Filter Chips */}
+            <div className="flex flex-wrap items-center gap-1.5 font-mono text-xs mb-10">
+              {categories.map((cat) => {
+                const isSelected = activeCategory === cat;
+                return (
+                  <button
+                    key={cat}
+                    onClick={() => setActiveCategory(cat)}
+                    type="button"
+                    className={`px-3 py-1.5 rounded-full border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6BFF] ${
+                      isSelected
+                        ? "bg-[#2F6BFF] border-[#2F6BFF] text-white font-semibold shadow-sm"
+                        : "bg-white dark:bg-[#111A2E] border-[rgba(11,18,32,0.12)] dark:border-[rgba(232,238,247,0.12)] text-[rgba(11,18,32,0.7)] dark:text-[#94A3B8] hover:text-[#0B1220] dark:hover:text-[#E8EEF7] hover:border-[#2F6BFF]/40"
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                );
+              })}
             </div>
 
-            <div
-              tabIndex={0}
-              role="button"
-              onClick={(e) => openModal(featuredCert, e.currentTarget)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  openModal(featuredCert, e.currentTarget);
-                }
-              }}
-              className="group cursor-pointer rounded-2xl bg-white dark:bg-[#111A2E] border-2 border-amber-500/30 hover:border-amber-500/60 p-6 sm:p-8 md:p-10 shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
-            >
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
-                {/* Portrait Medal Image */}
-                <div className="md:col-span-4 flex justify-center">
-                  <div className="relative w-48 sm:w-56 aspect-[3/4] rounded-xl overflow-hidden border border-[rgba(11,18,32,0.1)] dark:border-[rgba(232,238,247,0.1)] shadow-md group-hover:scale-[1.02] transition-transform">
-                    {featuredCert.extraImage && (
-                      <Image
-                        src={featuredCert.extraImage}
-                        alt="Medal for serving on Core Committee InvenT 2026"
-                        fill
-                        sizes="(max-width: 768px) 200px, 250px"
-                        loading="lazy"
-                        className="object-cover"
-                      />
-                    )}
-                  </div>
+            {/* FEATURED: Core Committee Honours Card */}
+            {featuredCert && (activeCategory === "All" || activeCategory === "Honours") && (
+              <div className="mb-14">
+                <div className="text-xs font-mono uppercase tracking-widest text-[#1F5AE6] dark:text-[#457DFF] font-semibold mb-3 flex items-center gap-2">
+                  <Medal className="w-4 h-4 text-amber-500" />
+                  <span>Featured Honours</span>
                 </div>
 
-                {/* Content Column */}
-                <div className="md:col-span-8 space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-xs">
-                    <span className="px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-400 font-semibold uppercase tracking-wider">
-                      {featuredCert.category}
-                    </span>
-                    {featuredCert.date && (
-                      <span className="text-[rgba(11,18,32,0.6)] dark:text-[#94A3B8]">
-                        {featuredCert.date}
-                      </span>
-                    )}
-                  </div>
+                <div
+                  tabIndex={0}
+                  role="button"
+                  onClick={(e) => openModal(featuredCert, e.currentTarget)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      openModal(featuredCert, e.currentTarget);
+                    }
+                  }}
+                  className="group cursor-pointer rounded-2xl bg-white dark:bg-[#111A2E] border-2 border-amber-500/30 hover:border-amber-500/60 p-6 sm:p-8 md:p-10 shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
+                    {/* Portrait Medal Image */}
+                    <div className="md:col-span-4 flex justify-center">
+                      <div className="relative w-48 sm:w-56 aspect-[3/4] rounded-xl overflow-hidden border border-[rgba(11,18,32,0.1)] dark:border-[rgba(232,238,247,0.1)] shadow-md group-hover:scale-[1.02] transition-transform">
+                        {featuredCert.extraImage && (
+                          <Image
+                            src={featuredCert.extraImage}
+                            alt="Medal for serving on Core Committee InvenT 2026"
+                            fill
+                            sizes="(max-width: 768px) 200px, 250px"
+                            loading="lazy"
+                            className="object-cover"
+                          />
+                        )}
+                      </div>
+                    </div>
 
-                  <h3 className="font-headline font-black text-2xl sm:text-3xl text-[#0B1220] dark:text-[#E8EEF7] tracking-tight group-hover:text-[#1F5AE6] dark:group-hover:text-[#457DFF] transition-colors">
-                    {featuredCert.title}
-                  </h3>
+                    {/* Content Column */}
+                    <div className="md:col-span-8 space-y-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-xs">
+                        <span className="px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-400 font-semibold uppercase tracking-wider">
+                          {featuredCert.category}
+                        </span>
+                        {featuredCert.date && (
+                          <span className="text-[rgba(11,18,32,0.6)] dark:text-[#94A3B8]">
+                            {featuredCert.date}
+                          </span>
+                        )}
+                      </div>
 
-                  <div className="text-sm font-mono text-[#1F5AE6] dark:text-[#457DFF] font-semibold">
-                    {featuredCert.issuer}
-                  </div>
+                      <h3 className="font-headline font-black text-2xl sm:text-3xl text-[#0B1220] dark:text-[#E8EEF7] tracking-tight group-hover:text-[#1F5AE6] dark:group-hover:text-[#457DFF] transition-colors">
+                        {featuredCert.title}
+                      </h3>
 
-                  {featuredCert.description && (
-                    <p className="text-sm sm:text-base text-[rgba(11,18,32,0.8)] dark:text-[#CBD5E1] leading-relaxed">
-                      {featuredCert.description}
-                    </p>
-                  )}
+                      <div className="text-sm font-mono text-[#1F5AE6] dark:text-[#457DFF] font-semibold">
+                        {featuredCert.issuer}
+                      </div>
 
-                  <div className="pt-2 text-xs font-mono text-[rgba(11,18,32,0.6)] dark:text-[#94A3B8] flex items-center gap-2">
-                    <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
-                    <span>Click to view certificate and medal detail</span>
+                      {featuredCert.description && (
+                        <p className="text-sm sm:text-base text-[rgba(11,18,32,0.8)] dark:text-[#CBD5E1] leading-relaxed">
+                          {featuredCert.description}
+                        </p>
+                      )}
+
+                      <div className="pt-2 text-xs font-mono text-[rgba(11,18,32,0.6)] dark:text-[#94A3B8] flex items-center gap-2">
+                        <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
+                        <span>Click to view certificate and medal detail</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
+            )}
+
+            {/* Other Certificates Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredCerts.map((cert) => {
+                const isProgram = cert.category === "Program";
+
+                return (
+                  <div
+                    key={cert.id}
+                    tabIndex={0}
+                    role="button"
+                    onClick={(e) => openModal(cert, e.currentTarget)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        openModal(cert, e.currentTarget);
+                      }
+                    }}
+                    className="group cursor-pointer rounded-xl bg-white dark:bg-[#111A2E] border border-[rgba(11,18,32,0.12)] dark:border-[rgba(232,238,247,0.12)] p-5 shadow-sm hover:border-[#2F6BFF]/40 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6BFF] flex flex-col justify-between"
+                  >
+                    <div>
+                      {/* Thumbnail if image exists */}
+                      {cert.image ? (
+                        <div className="relative w-full aspect-[4/3] rounded-lg overflow-hidden border border-[rgba(11,18,32,0.08)] dark:border-[rgba(232,238,247,0.08)] mb-4 bg-slate-100 dark:bg-slate-900">
+                          <Image
+                            src={cert.image}
+                            alt={`${cert.title} issued by ${cert.issuer}`}
+                            fill
+                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                            loading="lazy"
+                            className="object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-full aspect-[4/3] rounded-lg border border-dashed border-[rgba(11,18,32,0.15)] dark:border-[rgba(232,238,247,0.15)] mb-4 flex flex-col items-center justify-center p-4 bg-slate-50 dark:bg-slate-900/50">
+                          <Award className="w-10 h-10 text-[#1F5AE6] dark:text-[#457DFF] mb-2 opacity-80" />
+                          <span className="text-xs font-mono font-semibold uppercase tracking-wider text-[#1F5AE6] dark:text-[#457DFF]">
+                            Program Involvements
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Header Meta */}
+                      <div className="flex items-center justify-between text-xs font-mono text-[rgba(11,18,32,0.6)] dark:text-[#94A3B8] mb-2">
+                        <span className="px-2 py-0.5 rounded bg-[rgba(31,90,230,0.08)] text-[#1F5AE6] dark:text-[#457DFF] text-[10px] font-semibold uppercase">
+                          {isProgram ? "Program" : cert.category}
+                        </span>
+                        {cert.date && <span>{cert.date}</span>}
+                      </div>
+
+                      {/* Title & Issuer */}
+                      <h4 className="font-headline font-bold text-lg text-[#0B1220] dark:text-[#E8EEF7] group-hover:text-[#1F5AE6] dark:group-hover:text-[#457DFF] transition-colors line-clamp-2">
+                        {cert.title}
+                      </h4>
+                      <div className="text-xs font-mono text-[rgba(11,18,32,0.65)] dark:text-[#94A3B8] mt-1 line-clamp-1">
+                        {cert.issuer}
+                      </div>
+                    </div>
+
+                    {/* Footer hint */}
+                    <div className="pt-4 mt-4 border-t border-[rgba(11,18,32,0.06)] dark:border-[rgba(232,238,247,0.06)] flex items-center justify-between text-xs font-mono text-[rgba(11,18,32,0.5)] dark:text-[#64748B]">
+                      <span>View Details</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
-
-        {/* Other Certificates Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredCerts.map((cert) => {
-            const isProgram = cert.category === "Program";
-
-            return (
-              <div
-                key={cert.id}
-                tabIndex={0}
-                role="button"
-                onClick={(e) => openModal(cert, e.currentTarget)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    openModal(cert, e.currentTarget);
-                  }
-                }}
-                className="group cursor-pointer rounded-xl bg-white dark:bg-[#111A2E] border border-[rgba(11,18,32,0.12)] dark:border-[rgba(232,238,247,0.12)] p-5 shadow-sm hover:border-[#2F6BFF]/40 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6BFF] flex flex-col justify-between"
-              >
-                <div>
-                  {/* Thumbnail if image exists */}
-                  {cert.image ? (
-                    <div className="relative w-full aspect-[4/3] rounded-lg overflow-hidden border border-[rgba(11,18,32,0.08)] dark:border-[rgba(232,238,247,0.08)] mb-4 bg-slate-100 dark:bg-slate-900">
-                      <Image
-                        src={cert.image}
-                        alt={`${cert.title} issued by ${cert.issuer}`}
-                        fill
-                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                        loading="lazy"
-                        className="object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                    </div>
-                  ) : (
-                    <div className="w-full aspect-[4/3] rounded-lg border border-dashed border-[rgba(11,18,32,0.15)] dark:border-[rgba(232,238,247,0.15)] mb-4 flex flex-col items-center justify-center p-4 bg-slate-50 dark:bg-slate-900/50">
-                      <Award className="w-10 h-10 text-[#1F5AE6] dark:text-[#457DFF] mb-2 opacity-80" />
-                      <span className="text-xs font-mono font-semibold uppercase tracking-wider text-[#1F5AE6] dark:text-[#457DFF]">
-                        Program Involvements
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Header Meta */}
-                  <div className="flex items-center justify-between text-xs font-mono text-[rgba(11,18,32,0.6)] dark:text-[#94A3B8] mb-2">
-                    <span className="px-2 py-0.5 rounded bg-[rgba(31,90,230,0.08)] text-[#1F5AE6] dark:text-[#457DFF] text-[10px] font-semibold uppercase">
-                      {isProgram ? "Program" : cert.category}
-                    </span>
-                    {cert.date && <span>{cert.date}</span>}
-                  </div>
-
-                  {/* Title & Issuer */}
-                  <h4 className="font-headline font-bold text-lg text-[#0B1220] dark:text-[#E8EEF7] group-hover:text-[#1F5AE6] dark:group-hover:text-[#457DFF] transition-colors line-clamp-2">
-                    {cert.title}
-                  </h4>
-                  <div className="text-xs font-mono text-[rgba(11,18,32,0.65)] dark:text-[#94A3B8] mt-1 line-clamp-1">
-                    {cert.issuer}
-                  </div>
-                </div>
-
-                {/* Footer hint */}
-                <div className="pt-4 mt-4 border-t border-[rgba(11,18,32,0.06)] dark:border-[rgba(232,238,247,0.06)] flex items-center justify-between text-xs font-mono text-[rgba(11,18,32,0.5)] dark:text-[#64748B]">
-                  <span>View Details</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </div>
-              </div>
-            );
-          })}
-        </div>
       </div>
 
       {/* Accessible Modal Dialog */}
